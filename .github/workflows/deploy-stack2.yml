@@ -72,7 +72,8 @@ jobs:
           else
             echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
           fi
-          echo "STACK_NAME=cloud-in-action-server-${{ github.ref_name }}" >> $GITHUB_ENV
+          SAFE_BRANCH=$(echo "${{ github.ref_name }}" | tr '/' '-')
+          echo "STACK_NAME=cloud-in-action-server-${SAFE_BRANCH}" >> $GITHUB_ENV
 
       # CAPABILITY_NAMED_IAM is required because this template creates
       # IAM resources (the EC2 role and instance profile).

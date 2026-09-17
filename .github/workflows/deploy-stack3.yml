@@ -71,7 +71,8 @@ jobs:
           else
             echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
           fi
-          echo "STACK_NAME=cloud-in-action-serverless-${{ github.ref_name }}" >> $GITHUB_ENV
+          SAFE_BRANCH=$(echo "${{ github.ref_name }}" | tr '/' '-')
+          echo "STACK_NAME=cloud-in-action-serverless-${SAFE_BRANCH}" >> $GITHUB_ENV
 
       - name: "🏗️ Deploy Stack 3 — Lambda + API Gateway"
         run: |
