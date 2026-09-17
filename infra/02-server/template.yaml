@@ -161,7 +161,11 @@ Resources:
       CidrBlock: 10.0.0.0/24
       # AvailabilityZone: pick the "a" zone in whatever region you deploy to.
       # AWS::Region is a built-in variable - it equals your deploy region (e.g., us-east-1).
-      AvailabilityZone: !Select [0, !GetAZs !Ref "AWS::Region"]
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs:
+              Ref: AWS::Region
       # MapPublicIpOnLaunch: EC2 instances in this subnet automatically get a public IP.
       MapPublicIpOnLaunch: true
       Tags:
