@@ -89,7 +89,8 @@ jobs:
           fi
 
           # Stack name includes branch so dev and prod stacks don't collide.
-          echo "STACK_NAME=cloud-in-action-storage-${{ github.ref_name }}" >> $GITHUB_ENV
+          SAFE_BRANCH=$(echo "${{ github.ref_name }}" | tr '/' '-')
+          echo "STACK_NAME=cloud-in-action-storage-${SAFE_BRANCH}" >> $GITHUB_ENV
 
       # ── STEP 4: Deploy the CloudFormation stack ───────────────────────────
       # "aws cloudformation deploy" is the magic command that:
