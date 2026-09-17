@@ -1,0 +1,134 @@
+# =============================================================================
+# WORKFLOW: deploy-stack2.yml
+# =============================================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   1. You push code to GitHub (or trigger manually)
+#   2. GitHub asks a human: "Are you sure you want to deploy?"
+#   3. Human clicks Approve in the GitHub UI
+#   4. AWS creates: VPC → Subnet → IGW → Security Group → EC2 → Elastic IP
+#   5. EC2 boots, runs UserData script, installs nginx, serves the page
+#   6. The live website URL (http://ELASTIC_IP) appears in the workflow log
+#   Total time: ~3-4 minutes from approval to live server
+#
+# WHAT MAKES THIS IMPRESSIVE FOR A LIVE DEMO:
+#   - Open the AWS Console → CloudFormation → Stack → Events tab
+#   - Watch EACH RESOURCE being created in real time (VPC, then Subnet,
+#     then IGW, then EC2...) — the audience sees the infrastructure
+#     being ASSEMBLED like LEGO blocks, automatically.
+#
+# =============================================================================
+
+name: "🚀 Deploy Stack 2 — Server (EC2)"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/02-server/**"
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev / staging / prod)"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  deploy:
+    name: "Deploy EC2 Web Server"
+    runs-on: ubuntu-latest
+
+    # ── THE APPROVAL GATE ───────────────────────────────────────────────────
+    # This is the "wow moment" — a human must approve before a server is born.
+    # Show this screen to your audience: "Waiting for approval..."
+    environment: production
+
+    steps:
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+
+      - name: "🔐 Configure AWS credentials"
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502  # v4.0.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: "⚙️ Set environment variables"
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "DEPLOY_ENV=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
+          else
+            echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
+          fi
+          echo "STACK_NAME=cloud-in-action-server-${{ github.ref_name }}" >> $GITHUB_ENV
+
+      # CAPABILITY_NAMED_IAM is required because this template creates
+      # IAM resources (the EC2 role and instance profile).
+      # CloudFormation requires you to explicitly acknowledge this.
+      - name: "🏗️ Deploy Stack 2 — EC2 Web Server"
+        run: |
+          echo "Deploying stack: $STACK_NAME"
+          echo "This creates: VPC, Subnet, IGW, Security Group, EC2, Elastic IP"
+          echo "Expected time: 3-4 minutes"
+          echo ""
+
+          aws cloudformation deploy \
+            --template-file infra/02-server/template.yaml \
+            --stack-name "$STACK_NAME" \
+            --parameter-overrides \
+              ProjectName=cloud-in-action \
+              Environment="$DEPLOY_ENV" \
+              InstanceType=t2.micro \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+
+          echo "Stack deployed! EC2 UserData may still be running (nginx install)."
+          echo "Wait 1-2 minutes before opening the WebsiteURL."
+
+      - name: "📋 Show stack outputs"
+        run: |
+          echo ""
+          echo "=== Stack Outputs ==="
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs' \
+            --output table
+
+      - name: "🌐 Your server is live!"
+        run: |
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL`].OutputValue' \
+            --output text)
+
+          INSTANCE_ID=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`InstanceId`].OutputValue' \
+            --output text)
+
+          echo ""
+          echo "╔════════════════════════════════════════════════════════════════╗"
+          echo "║  🎉 Stack 2 deployed successfully!                            ║"
+          echo "║                                                                ║"
+          echo "║  Your server is live at:                                      ║"
+          echo "║  $WEBSITE_URL"
+          echo "║                                                                ║"
+          echo "║  NOTE: Wait 1-2 minutes for nginx to finish installing.       ║"
+          echo "║                                                                ║"
+          echo "║  Shell access (no SSH key needed):                            ║"
+          echo "║  aws ssm start-session --target $INSTANCE_ID"
+          echo "║                                                                ║"
+          echo "║  REMEMBER: Run teardown workflow when done!                   ║"
+          echo "╚════════════════════════════════════════════════════════════════╝"

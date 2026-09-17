@@ -1,0 +1,127 @@
+# =============================================================================
+# WORKFLOW: validate.yml
+# =============================================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   Every time code is pushed to ANY branch (or a Pull Request is opened),
+#   AWS checks our CloudFormation templates for errors BEFORE anything
+#   gets deployed. Think of it as spell-check for infrastructure.
+#
+# WHY THIS MATTERS:
+#   Catching errors early (before deploy) saves time and prevents broken
+#   stacks in AWS. A validate failure here costs $0. A failed deploy
+#   costs time and sometimes leaves orphaned resources.
+#
+# WHAT YOU'LL SEE:
+#   Green checkmark = all templates are valid CloudFormation
+#   Red X = a template has a syntax or structural error (check the logs)
+#
+# =============================================================================
+
+name: "☁️ Validate CloudFormation Templates"
+
+# ── TRIGGERS ─────────────────────────────────────────────────────────────────
+# Run this workflow on every push to any branch, and on pull requests to main.
+on:
+  push:
+    branches:
+      - "**"   # Every branch — catch errors before they reach main
+  pull_request:
+    branches:
+      - main   # Always validate before merging to main
+
+jobs:
+  validate:
+    name: "Validate CFN Templates"
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── STEP 1: Check out the code ────────────────────────────────────────
+      # SECURITY: Pinned to a specific SHA hash to prevent supply chain attacks.
+      # If "actions/checkout@v4" were compromised, the SHA pin protects you.
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+        # Always pin GitHub Action versions to a SHA, not a tag.
+
+      # ── STEP 2: Configure AWS credentials ────────────────────────────────
+      # We authenticate to AWS using access keys stored as GitHub Secrets.
+      # SECURITY: These secrets are NEVER visible in logs — GitHub masks them.
+      #
+      # HOW TO ADD SECRETS:
+      #   1. Go to your GitHub repo → Settings → Secrets and variables → Actions
+      #   2. Add: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+      #
+      # ALTERNATIVE (more secure): Use OIDC instead of long-lived access keys.
+      # See docs/setup-aws-credentials.md for the OIDC setup guide.
+      - name: "🔐 Configure AWS credentials"
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502  # v4.0.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      # ── STEP 3: Validate Stack 1 — Storage ───────────────────────────────
+      # aws cloudformation validate-template checks the template syntax
+      # and structure against the CloudFormation API.
+      # It does NOT deploy anything — it just validates.
+      - name: "✅ Validate Stack 1 — Storage (S3)"
+        run: |
+          echo "Validating infra/01-storage/template.yaml..."
+          aws cloudformation validate-template \
+            --template-body file://infra/01-storage/template.yaml
+          echo "Stack 1 template is valid!"
+
+      # ── STEP 4: Validate Stack 2 — Server ────────────────────────────────
+      - name: "✅ Validate Stack 2 — Server (EC2)"
+        run: |
+          echo "Validating infra/02-server/template.yaml..."
+          aws cloudformation validate-template \
+            --template-body file://infra/02-server/template.yaml
+          echo "Stack 2 template is valid!"
+
+      # ── STEP 5: Validate Stack 3 — Serverless ────────────────────────────
+      - name: "✅ Validate Stack 3 — Serverless (Lambda)"
+        run: |
+          echo "Validating infra/03-serverless/template.yaml..."
+          aws cloudformation validate-template \
+            --template-body file://infra/03-serverless/template.yaml
+          echo "Stack 3 template is valid!"
+
+      # ── STEP 6: Run cfn-lint for deeper analysis ──────────────────────────
+      # cfn-lint goes beyond basic validation — it checks for:
+      #   - Deprecated properties
+      #   - Best practice violations
+      #   - Potential issues (like missing DependsOn)
+      #   - Security recommendations
+      - name: "🔍 Install cfn-lint"
+        run: |
+          pip install cfn-lint --quiet
+          cfn-lint --version
+
+      - name: "🔍 Run cfn-lint on all templates"
+        run: |
+          echo "Running cfn-lint (deep analysis)..."
+          # -I = include informational messages
+          # --format parseable = machine-readable output for CI
+          cfn-lint infra/01-storage/template.yaml --format parseable || true
+          cfn-lint infra/02-server/template.yaml --format parseable || true
+          cfn-lint infra/03-serverless/template.yaml --format parseable || true
+          echo "cfn-lint analysis complete."
+        # Note: "|| true" means cfn-lint warnings won't fail the build.
+        # To fail on warnings, remove "|| true" and use --include-checks.
+
+      # ── STEP 7: Summary ──────────────────────────────────────────────────
+      - name: "🎉 All templates validated!"
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════╗"
+          echo "║  ✅ All CloudFormation templates are valid!      ║"
+          echo "║                                                  ║"
+          echo "║  Stack 1: infra/01-storage/template.yaml  ✅    ║"
+          echo "║  Stack 2: infra/02-server/template.yaml   ✅    ║"
+          echo "║  Stack 3: infra/03-serverless/template.yaml ✅  ║"
+          echo "╚══════════════════════════════════════════════════╝"
+          echo ""
+          echo "Next step: Merge to main to trigger deployment workflows."

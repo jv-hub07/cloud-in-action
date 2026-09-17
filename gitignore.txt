@@ -1,0 +1,60 @@
+﻿# =============================================================================
+# gitignore.txt — rename this file to .gitignore after forking
+# =============================================================================
+# SECURITY: These files MUST never be committed to version control.
+# AWS credentials, private keys, and environment secrets could give
+# an attacker full access to your AWS account if exposed publicly.
+# =============================================================================
+
+# -- Secrets & Credentials (NEVER commit these) --------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+creds.*
+credentials
+aws-exports.*
+.aws/
+
+# -- AWS SAM / CDK artifacts ---------------------------------------------------
+.aws-sam/
+cdk.out/
+samconfig.toml
+
+# -- Python --------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+*.egg
+
+# -- Node (if any tooling added later) -----------------------------------------
+node_modules/
+npm-debug.log*
+
+# -- VS Code -------------------------------------------------------------------
+# Keep .vscode/tasks.json and launch.json (they help learners)
+# but ignore personal settings
+.vscode/settings.json
+.vscode/*.log
+
+# -- OS artifacts --------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -- Terraform (if learner experiments) ----------------------------------------
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# -- Logs ----------------------------------------------------------------------
+*.log
+logs/

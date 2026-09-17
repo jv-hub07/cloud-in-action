@@ -1,0 +1,170 @@
+# =============================================================================
+# WORKFLOW: teardown.yml
+# =============================================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   Deletes all three CloudFormation stacks and all the AWS resources
+#   they created (S3 bucket, EC2 instance, VPC, Lambda, API Gateway).
+#
+# RUN THIS AFTER YOUR DEMO to ensure no AWS charges accumulate.
+#
+# SAFETY GATE:
+#   You must type the word "DELETE" in the confirmation input to proceed.
+#   This prevents accidental teardown from a mis-click.
+#
+# WHAT GETS DELETED:
+#   Stack 1: S3 bucket + bucket policy (bucket must be EMPTY first)
+#   Stack 2: EC2, Elastic IP, VPC, Subnet, IGW, Security Group, IAM Role
+#   Stack 3: Lambda, API Gateway, CloudWatch Log Group, IAM Role
+#
+# WHAT IS NOT DELETED:
+#   - Your GitHub repository (nothing touches GitHub)
+#   - Your AWS account itself
+#   - Any resources you created OUTSIDE of these stacks
+#
+# COST AFTER TEARDOWN: $0.00
+#
+# =============================================================================
+
+name: "🗑️ Teardown — Delete All Stacks"
+
+on:
+  # MANUAL ONLY — this workflow never runs automatically.
+  # You must go to Actions tab → Teardown → Run workflow → type DELETE.
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: >
+          Type DELETE (all caps) to confirm you want to destroy all AWS resources.
+          This cannot be undone.
+        required: true
+        type: string
+      target_branch:
+        description: "Which branch's stacks to delete (default: main)"
+        required: true
+        default: "main"
+        type: string
+
+jobs:
+  confirm:
+    name: "Verify confirmation"
+    runs-on: ubuntu-latest
+    steps:
+      # Fail immediately if the user did not type "DELETE"
+      - name: "🛑 Check confirmation input"
+        run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "DELETE" ]; then
+            echo "╔══════════════════════════════════════════════════════╗"
+            echo "║  ❌ Teardown CANCELLED                               ║"
+            echo "║                                                      ║"
+            echo "║  You must type DELETE (all caps) to confirm.        ║"
+            echo "║  You typed: '${{ github.event.inputs.confirmation }}'"
+            echo "╚══════════════════════════════════════════════════════╝"
+            exit 1
+          fi
+          echo "✅ Confirmation received. Proceeding with teardown..."
+
+  teardown:
+    name: "Delete All CloudFormation Stacks"
+    runs-on: ubuntu-latest
+    needs: confirm   # Only run if the confirm job passed
+
+    steps:
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+
+      - name: "🔐 Configure AWS credentials"
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502  # v4.0.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: "⚙️ Set stack names"
+        run: |
+          BRANCH="${{ github.event.inputs.target_branch }}"
+          echo "TARGET_BRANCH=$BRANCH" >> $GITHUB_ENV
+          echo "STACK1=cloud-in-action-storage-$BRANCH" >> $GITHUB_ENV
+          echo "STACK2=cloud-in-action-server-$BRANCH" >> $GITHUB_ENV
+          echo "STACK3=cloud-in-action-serverless-$BRANCH" >> $GITHUB_ENV
+
+      # ── Empty the S3 bucket before deleting Stack 1 ──────────────────────
+      # CloudFormation CANNOT delete an S3 bucket that still has objects in it.
+      # We must empty the bucket first or the stack deletion will fail.
+      - name: "🗑️ Empty S3 bucket (required before stack deletion)"
+        run: |
+          # Get the bucket name from the stack outputs (if stack exists)
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK1" \
+            --query 'Stacks[0].Outputs[?OutputKey==`BucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$BUCKET_NAME" ] && [ "$BUCKET_NAME" != "None" ]; then
+            echo "Emptying S3 bucket: $BUCKET_NAME"
+            # aws s3 rm --recursive deletes ALL objects in the bucket.
+            aws s3 rm "s3://${BUCKET_NAME}" --recursive || true
+            echo "Bucket emptied."
+          else
+            echo "Stack 1 not found or bucket name not available — skipping."
+          fi
+
+      # ── Delete Stack 1 ────────────────────────────────────────────────────
+      - name: "🗑️ Delete Stack 1 — Storage"
+        run: |
+          echo "Deleting stack: $STACK1"
+          if aws cloudformation describe-stacks --stack-name "$STACK1" &>/dev/null; then
+            aws cloudformation delete-stack --stack-name "$STACK1"
+            echo "Waiting for deletion to complete..."
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK1"
+            echo "Stack 1 deleted."
+          else
+            echo "Stack 1 ($STACK1) does not exist — skipping."
+          fi
+
+      # ── Delete Stack 2 ────────────────────────────────────────────────────
+      # This deletes: EC2 instance, Elastic IP, VPC, Subnet, IGW, Security Group, IAM Role.
+      # The Elastic IP will be released (freeing you from any EIP charges).
+      - name: "🗑️ Delete Stack 2 — Server"
+        run: |
+          echo "Deleting stack: $STACK2"
+          if aws cloudformation describe-stacks --stack-name "$STACK2" &>/dev/null; then
+            aws cloudformation delete-stack --stack-name "$STACK2"
+            echo "Waiting for deletion to complete (this takes ~2 minutes)..."
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK2"
+            echo "Stack 2 deleted."
+          else
+            echo "Stack 2 ($STACK2) does not exist — skipping."
+          fi
+
+      # ── Delete Stack 3 ────────────────────────────────────────────────────
+      - name: "🗑️ Delete Stack 3 — Serverless"
+        run: |
+          echo "Deleting stack: $STACK3"
+          if aws cloudformation describe-stacks --stack-name "$STACK3" &>/dev/null; then
+            aws cloudformation delete-stack --stack-name "$STACK3"
+            echo "Waiting for deletion to complete..."
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK3"
+            echo "Stack 3 deleted."
+          else
+            echo "Stack 3 ($STACK3) does not exist — skipping."
+          fi
+
+      # ── Final summary ─────────────────────────────────────────────────────
+      - name: "✅ Teardown complete"
+        run: |
+          echo ""
+          echo "╔════════════════════════════════════════════════════════════════╗"
+          echo "║  ✅ Teardown complete!                                        ║"
+          echo "║                                                                ║"
+          echo "║  All three stacks have been deleted:                          ║"
+          echo "║    Stack 1 (S3 website)        ✅ Deleted                    ║"
+          echo "║    Stack 2 (EC2 server)         ✅ Deleted                   ║"
+          echo "║    Stack 3 (Lambda API)         ✅ Deleted                   ║"
+          echo "║                                                                ║"
+          echo "║  AWS charges going forward: $0.00                            ║"
+          echo "║                                                                ║"
+          echo "║  Your YAML templates still exist in GitHub —                  ║"
+          echo "║  you can redeploy everything in under 5 minutes!             ║"
+          echo "╚════════════════════════════════════════════════════════════════╝"

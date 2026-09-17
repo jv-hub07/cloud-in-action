@@ -1,0 +1,83 @@
+{
+  "folders": [
+    {
+      "path": ".",
+      "name": "☁️ cloud-in-action"
+    }
+  ],
+  "settings": {
+    // ── YAML settings ────────────────────────────────────────────────────────
+    // Associate all .yaml files with the YAML language mode.
+    "files.associations": {
+      "*.yaml": "yaml",
+      "*.yml": "yaml"
+    },
+    // Map CloudFormation templates to the AWS CFN JSON schema.
+    // This enables IntelliSense (autocomplete) for CloudFormation keywords!
+    // Type "AWS::" in a template and VS Code will suggest resource types.
+    "yaml.schemas": {
+      "https://raw.githubusercontent.com/awslabs/goformation/master/schema/cloudformation.schema.json": [
+        "infra/**/*.yaml",
+        "infra/**/*.yml"
+      ]
+    },
+    // Format YAML files automatically when you save — keeps code clean.
+    "editor.formatOnSave": true,
+    // Show whitespace in YAML — important because YAML is indentation-sensitive.
+    "editor.renderWhitespace": "boundary",
+    // Use 2-space indentation for YAML (CloudFormation convention).
+    "[yaml]": {
+      "editor.tabSize": 2,
+      "editor.insertSpaces": true,
+      "editor.autoIndent": "advanced"
+    },
+    // ── Git settings ──────────────────────────────────────────────────────────
+    // Show the git graph in the Source Control sidebar.
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    // ── Explorer settings ─────────────────────────────────────────────────────
+    // Collapse the .github folder by default in the explorer.
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.patterns": {
+      "*.yaml": "$(capture).md"
+    }
+  },
+  "extensions": {
+    // ── RECOMMENDED EXTENSIONS ────────────────────────────────────────────────
+    // VS Code will prompt you to install these when you open the workspace.
+    // Each one improves the CloudFormation development experience.
+    "recommendations": [
+      // AWS Toolkit: connects VS Code to your AWS account.
+      // Browse S3 buckets, Lambda functions, and CloudFormation stacks
+      // directly in VS Code without opening the AWS Console.
+      "amazonwebservices.aws-toolkit-vscode",
+
+      // CloudFormation Snippets: type shortcuts to insert CFN resource templates.
+      // E.g., type "s3bucket" and get a full S3::Bucket resource template.
+      "aws-scripting-guy.cform",
+
+      // Red Hat YAML: YAML language support with schema validation.
+      // Shows errors in CloudFormation templates as you type — not after deploy.
+      "redhat.vscode-yaml",
+
+      // GitHub Pull Requests: review and manage PRs directly in VS Code.
+      // Useful for the demo — show the PR approval flow without leaving VS Code.
+      "GitHub.vscode-pull-request-github",
+
+      // GitLens: see who wrote each line, when, and why.
+      // Hover over any line to see its git history — great for teaching git.
+      "eamodio.gitlens",
+
+      // Prettier: auto-formats YAML, JSON, and Markdown files.
+      "esbenp.prettier-vscode"
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": []
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": []
+  }
+}

@@ -1,0 +1,169 @@
+# =============================================================================
+# WORKFLOW: deploy-stack1.yml
+# =============================================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   1. You push code to GitHub (or trigger manually)
+#   2. GitHub asks a human: "Are you sure you want to deploy?"
+#   3. Human clicks Approve in the GitHub UI
+#   4. AWS creates the S3 static website automatically
+#   5. The live website URL appears in the workflow log
+#   Total time: ~30 seconds from approval to live website
+#
+# THE WOW MOMENT FOR NON-TECHNICAL AUDIENCES:
+#   The "environment: production" setting requires a human to review and
+#   approve BEFORE any AWS resources are created. This is how professional
+#   teams prevent accidental deployments and unexpected bills.
+#
+# HOW TO SET UP THE APPROVAL GATE:
+#   1. Go to your GitHub repo → Settings → Environments
+#   2. Click "New environment" → name it "production"
+#   3. Enable "Required reviewers" → add yourself
+#   4. Save. Now every deploy to production requires your approval.
+#
+# =============================================================================
+
+name: "🚀 Deploy Stack 1 — Storage (S3)"
+
+# ── TRIGGERS ─────────────────────────────────────────────────────────────────
+on:
+  # Trigger automatically when infra/01-storage/ files change on main.
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/01-storage/**"   # Only run when Stack 1 files change
+
+  # Trigger manually from the GitHub UI (Actions tab → Run workflow).
+  # This is great for demos — you control exactly when to deploy.
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev / staging / prod)"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  deploy:
+    name: "Deploy S3 Static Website"
+    runs-on: ubuntu-latest
+
+    # ── THE APPROVAL GATE ───────────────────────────────────────────────────
+    # environment: production means GitHub will PAUSE here and wait for a
+    # human to click "Approve" before continuing to the deploy steps.
+    # This is the magic that makes non-technical audiences say "wow".
+    # Without the approval gate, deployments run immediately on push.
+    environment: production
+
+    steps:
+      # ── STEP 1: Checkout ─────────────────────────────────────────────────
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+
+      # ── STEP 2: Configure AWS credentials ────────────────────────────────
+      - name: "🔐 Configure AWS credentials"
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502  # v4.0.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      # ── STEP 3: Determine environment ────────────────────────────────────
+      # Set the environment name based on how the workflow was triggered.
+      - name: "⚙️ Set environment variables"
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "DEPLOY_ENV=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
+          else
+            echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
+          fi
+
+          # Stack name includes branch so dev and prod stacks don't collide.
+          echo "STACK_NAME=cloud-in-action-storage-${{ github.ref_name }}" >> $GITHUB_ENV
+
+      # ── STEP 4: Deploy the CloudFormation stack ───────────────────────────
+      # "aws cloudformation deploy" is the magic command that:
+      #   1. Reads the template YAML
+      #   2. Computes what needs to change (the "changeset")
+      #   3. Creates or updates the stack in AWS
+      #   4. Waits until complete (or fails)
+      - name: "🏗️ Deploy Stack 1 — S3 Static Website"
+        run: |
+          echo "Deploying stack: $STACK_NAME"
+          echo "Environment: $DEPLOY_ENV"
+          echo "Region: $AWS_DEFAULT_REGION"
+          echo ""
+
+          aws cloudformation deploy \
+            --template-file infra/01-storage/template.yaml \
+            --stack-name "$STACK_NAME" \
+            --parameter-overrides \
+              ProjectName=cloud-in-action \
+              Environment="$DEPLOY_ENV" \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset
+          #   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          # --no-fail-on-empty-changeset: if nothing changed, don't fail.
+          # Without this, pushing without template changes would fail the build.
+
+          echo "Stack deployed successfully!"
+
+      # ── STEP 5: Upload the sample webpage ─────────────────────────────────
+      # After creating the bucket, upload the index.html so visitors see a page.
+      - name: "📄 Upload index.html to S3"
+        run: |
+          # Get the bucket name from the CloudFormation stack outputs.
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`BucketName`].OutputValue' \
+            --output text)
+
+          echo "Uploading index.html to bucket: $BUCKET_NAME"
+
+          aws s3 cp infra/01-storage/index.html \
+            "s3://${BUCKET_NAME}/index.html" \
+            --content-type "text/html"
+
+          echo "index.html uploaded!"
+
+      # ── STEP 6: Show outputs ──────────────────────────────────────────────
+      # Print the stack outputs so the live URL is visible in the workflow log.
+      - name: "📋 Show stack outputs"
+        run: |
+          echo ""
+          echo "=== Stack Outputs ==="
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs' \
+            --output table
+          echo ""
+
+      # ── STEP 7: Print the live URL ────────────────────────────────────────
+      - name: "🌐 Your website is live!"
+        run: |
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL`].OutputValue' \
+            --output text)
+
+          echo ""
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║  🎉 Stack 1 deployed successfully!                        ║"
+          echo "║                                                            ║"
+          echo "║  Your website is live at:                                 ║"
+          echo "║  $WEBSITE_URL"
+          echo "║                                                            ║"
+          echo "║  Open the URL above in your browser to see your site!     ║"
+          echo "╚════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "REMEMBER: Run the teardown workflow when done to avoid charges."

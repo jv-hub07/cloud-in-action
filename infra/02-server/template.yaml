@@ -1,0 +1,525 @@
+# =============================================================================
+# STACK 2: "Hello, Cloud Server"
+# =============================================================================
+#
+# WHAT THIS TEMPLATE DOES:
+#   Creates a REAL web server running in AWS — a virtual computer (EC2 instance)
+#   with its own IP address, running nginx, serving a custom webpage.
+#   The entire network around it (VPC, subnet, internet gateway) is also created
+#   from scratch by this template.
+#
+# WHAT YOU WILL LEARN:
+#   1. What Amazon EC2 is (Elastic Compute Cloud — a virtual computer)
+#   2. What a VPC is (your private section of Amazon's network)
+#   3. What a Security Group is (a cloud firewall)
+#   4. What IAM is (identity and access management — the security guard)
+#   5. What UserData is (a startup script that runs when your server boots)
+#   6. How to access a server WITHOUT SSH (AWS Systems Manager)
+#
+# FREE TIER: t2.micro instances are FREE for 750 hours/month for 12 months.
+#            That's enough to run this server 24/7 for a full month — $0.00.
+#
+# SECURITY HIGHLIGHTS:
+#   - NO SSH key pair — access via SSM Session Manager only
+#   - Security Group only allows HTTP/HTTPS inbound (no port 22)
+#   - IAM Instance Profile uses least-privilege SSM policy
+#
+# HOW TO DEPLOY (from your terminal):
+#   aws cloudformation deploy \
+#     --template-file infra/02-server/template.yaml \
+#     --stack-name cloud-in-action-server \
+#     --parameter-overrides ProjectName=cloud-in-action Environment=dev \
+#     --capabilities CAPABILITY_NAMED_IAM
+#
+# =============================================================================
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Stack 2 of 3 — "Hello, Cloud Server"
+  Creates a VPC, public subnet, Internet Gateway, Security Group,
+  EC2 t2.micro running nginx, Elastic IP, and SSM access.
+  FREE TIER: $0.00 for the first 12 months (750 hrs/month t2.micro).
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+Parameters:
+
+  ProjectName:
+    Type: String
+    Default: cloud-in-action
+    Description: Project name — used in resource tags and the webpage title.
+    AllowedPattern: "[a-z0-9-]+"
+    ConstraintDescription: "Lowercase letters, numbers, and hyphens only."
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment (dev / staging / prod).
+
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    # AllowedValues restricts to FREE TIER eligible instance types ONLY.
+    # This prevents accidentally deploying an expensive instance type.
+    AllowedValues:
+      - t2.micro   # FREE TIER: 750 hours/month for 12 months
+      - t3.micro   # NOT free tier, but cheapest next step (~$0.01/hr)
+    Description: >
+      EC2 instance type. t2.micro is FREE TIER eligible.
+      Do not change to a larger type for this demo — unnecessary cost.
+
+  # SSHCidr restricts SSH access by IP address.
+  # SECURITY WARNING: "0.0.0.0/0" means the entire internet can attempt SSH.
+  # In production, replace with your office IP (e.g., "203.0.113.10/32").
+  # For this demo, SSH is NOT enabled (no KeyName parameter) so this
+  # parameter is informational only — showing good practice.
+  SSHCidr:
+    Type: String
+    Default: "0.0.0.0/0"
+    Description: >
+      SECURITY: IP CIDR allowed for SSH. Default is open to all.
+      RESTRICT THIS IN PRODUCTION to your IP: "x.x.x.x/32"
+      Note: SSH key pair is not used in this demo — access is via SSM only.
+
+# =============================================================================
+# MAPPINGS — lookup tables baked into the template
+# Here we map each AWS Region to the correct Amazon Linux 2023 AMI ID.
+# AMI IDs are different in every region — this mapping handles that for you.
+# =============================================================================
+Mappings:
+  # Amazon Linux 2023 AMI IDs per region (updated 2024)
+  # To find the latest: AWS Console → EC2 → AMIs → search "al2023-ami"
+  AmazonLinux2023AMI:
+    us-east-1:
+      AMI: ami-0c02fb55956c7d316   # N. Virginia
+    us-east-2:
+      AMI: ami-0b0dcb5067f052a63   # Ohio
+    us-west-1:
+      AMI: ami-0ea642a412e673339   # N. California
+    us-west-2:
+      AMI: ami-098e42ae54c764c35   # Oregon
+    eu-west-1:
+      AMI: ami-0ef9e689241f0bb6e   # Ireland
+    eu-central-1:
+      AMI: ami-0a261c0e5f51090b1   # Frankfurt
+    ap-southeast-1:
+      AMI: ami-0df7a207adb9748c7   # Singapore
+    ap-northeast-1:
+      AMI: ami-0e25eba2025eea319   # Tokyo
+    ap-south-1:
+      AMI: ami-08df646e18b182346   # Mumbai
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+Resources:
+
+  # ===========================================================================
+  # NETWORKING — VPC, Subnet, Internet Gateway, Route Table
+  # ===========================================================================
+  # Think of this as setting up the roads and neighborhoods before
+  # building the house (EC2 instance).
+
+  # ---------------------------------------------------------------------------
+  # VPC (Virtual Private Cloud)
+  # A VPC is YOUR private section of Amazon's massive network.
+  # Imagine renting a floor of an office building — your VPC is your floor,
+  # isolated from all other tenants even though you share the building.
+  # ---------------------------------------------------------------------------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      # CidrBlock defines the IP address range for your private network.
+      # 10.0.0.0/16 means you have 65,536 possible IP addresses to assign.
+      CidrBlock: 10.0.0.0/16
+      # EnableDnsSupport: lets AWS assign DNS names to your instances.
+      # EnableDnsHostnames: lets instances get public DNS hostnames.
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-vpc-${Environment}"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ---------------------------------------------------------------------------
+  # PUBLIC SUBNET
+  # A subnet is a slice of your VPC's IP range assigned to ONE availability zone.
+  # "Public" means resources here CAN have public IP addresses and reach internet.
+  # "Private" would mean no internet access (used for databases, internal APIs).
+  # ---------------------------------------------------------------------------
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      # 10.0.0.0/24 = 256 IP addresses within the VPC's 10.0.0.0/16 range
+      CidrBlock: 10.0.0.0/24
+      # AvailabilityZone: pick the "a" zone in whatever region you deploy to.
+      # AWS::Region is a built-in variable — it equals your deploy region (e.g., us-east-1).
+      AvailabilityZone: !Select [0, !GetAZs !Ref "AWS::Region"]
+      # MapPublicIpOnLaunch: EC2 instances in this subnet automatically get a public IP.
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-public-subnet-${Environment}"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ---------------------------------------------------------------------------
+  # INTERNET GATEWAY
+  # The Internet Gateway is the on/off ramp between your VPC and the internet.
+  # Without it, nothing inside your VPC can reach (or be reached from) the internet.
+  # ---------------------------------------------------------------------------
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-igw-${Environment}"
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Attach the Internet Gateway to the VPC — they must be paired together.
+  # Without this attachment, the IGW exists but does nothing.
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # ---------------------------------------------------------------------------
+  # ROUTE TABLE + ROUTES
+  # A Route Table is like a GPS for network traffic — it tells packets
+  # WHERE to go. We add a route that says "send all traffic (0.0.0.0/0)
+  # through the Internet Gateway".
+  # ---------------------------------------------------------------------------
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-public-rt-${Environment}"
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # The default route: "anything not in the VPC → go through the Internet Gateway"
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    # DependsOn: wait for the IGW to be attached before creating this route.
+    # Without this, the route might be created before the IGW is ready.
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0   # 0.0.0.0/0 = "all traffic"
+      GatewayId: !Ref InternetGateway
+
+  # Associate the route table with the subnet — connect the GPS to the neighborhood.
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  # ===========================================================================
+  # SECURITY GROUP — the cloud firewall
+  # ===========================================================================
+  # A Security Group is a stateful firewall that controls inbound and outbound
+  # traffic for your EC2 instance. Think of it as a bouncer at a nightclub —
+  # it decides who gets in (inbound) and who can leave (outbound).
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: >
+        Security Group for the cloud-in-action web server.
+        Allows HTTP and HTTPS from the internet.
+        SSH is intentionally disabled — use SSM Session Manager instead.
+      VpcId: !Ref VPC
+
+      SecurityGroupIngress:
+        # RULE 1: Allow HTTP (port 80) from anywhere.
+        # This lets visitors see your website over regular HTTP.
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0   # 0.0.0.0/0 = all IPv4 addresses (the whole internet)
+          Description: "Allow HTTP traffic from the internet"
+
+        # RULE 2: Allow HTTPS (port 443) from anywhere.
+        # This lets visitors see your website over secure HTTPS.
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: "Allow HTTPS traffic from the internet"
+
+        # NOTE: Port 22 (SSH) is intentionally NOT listed here.
+        # SECURITY: No SSH port open = no brute force attack surface.
+        # We use AWS Systems Manager Session Manager for shell access instead.
+        # SSM requires NO open ports, NO SSH keys, NO key management.
+
+      SecurityGroupEgress:
+        # Allow ALL outbound traffic — the instance needs to download packages,
+        # talk to AWS services, etc. Restrict this further in high-security environments.
+        - IpProtocol: -1           # -1 = all protocols
+          FromPort: -1             # -1 = all ports
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic (package downloads, AWS API calls)"
+
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-sg-${Environment}"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ===========================================================================
+  # IAM ROLE + INSTANCE PROFILE — the security guard for the EC2 instance
+  # ===========================================================================
+  # IAM (Identity and Access Management) controls WHAT your EC2 instance
+  # is allowed to DO in AWS. Without a role, the instance has zero permissions.
+  # We attach the SSM policy so the instance can be accessed via Session Manager.
+
+  # The IAM Role defines what AWS services the EC2 instance can call.
+  WebServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-webserver-role-${Environment}"
+      # AssumeRolePolicyDocument: who is ALLOWED to USE this role?
+      # Here, EC2 instances ("ec2.amazonaws.com") can assume this role.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com   # Only EC2 instances can use this role
+            Action: sts:AssumeRole
+      # ManagedPolicyArns: attach AWS-managed policies (pre-built permission sets).
+      # AmazonSSMManagedInstanceCore allows SSM Session Manager shell access.
+      # This is the minimum policy needed to avoid opening port 22.
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # The Instance Profile is the "wrapper" that lets you attach an IAM Role to EC2.
+  # You can't attach a Role directly to an EC2 instance — you need this glue layer.
+  WebServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub "${ProjectName}-webserver-profile-${Environment}"
+      Roles:
+        - !Ref WebServerRole   # Attach the role we created above
+
+  # ===========================================================================
+  # EC2 INSTANCE — the virtual computer
+  # ===========================================================================
+  # Amazon EC2 (Elastic Compute Cloud) gives you a virtual server that you
+  # can configure exactly how you want. It's a computer running in Amazon's
+  # data center that you rent by the hour.
+  WebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      # ImageId: which operating system to use?
+      # We use Amazon Linux 2023 — AWS's own Linux, optimized for EC2.
+      # !FindInMap looks up the right AMI for the current region.
+      ImageId: !FindInMap [AmazonLinux2023AMI, !Ref "AWS::Region", AMI]
+
+      # InstanceType: how powerful should the server be?
+      # t2.micro = 1 vCPU, 1 GB RAM — perfect for demos, FREE TIER eligible.
+      InstanceType: !Ref InstanceType
+
+      # SubnetId: WHICH subnet (neighborhood) to place this instance in.
+      SubnetId: !Ref PublicSubnet
+
+      # SecurityGroupIds: WHICH firewalls protect this instance.
+      SecurityGroupIds:
+        - !Ref WebServerSecurityGroup
+
+      # IamInstanceProfile: the role/permissions attached to this instance.
+      IamInstanceProfile: !Ref WebServerInstanceProfile
+
+      # SECURITY: DisableApiTermination prevents accidental instance termination
+      # via the API. Set to false for demo so teardown works cleanly.
+      DisableApiTermination: false
+
+      # UserData: a BASH script that runs ONCE when the instance first boots.
+      # This is how you install software and configure the server automatically.
+      # !Base64 encodes the script as required by the EC2 API.
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # =================================================================
+          # USERDATA SCRIPT — runs automatically when the server boots
+          # This is the "magic" that turns a blank server into a web server
+          # in under 2 minutes, with zero manual steps.
+          # =================================================================
+
+          # Exit immediately if any command fails (good bash practice)
+          set -e
+
+          # Log all output to a file so you can debug if something goes wrong
+          exec > >(tee /var/log/user-data.log | logger -t user-data) 2>&1
+
+          echo "=== Starting cloud-in-action server setup ==="
+          echo "Project: ${ProjectName}"
+          echo "Environment: ${Environment}"
+          echo "Stack: ${AWS::StackName}"
+          echo "Region: ${AWS::Region}"
+
+          # Update all installed packages to their latest versions.
+          # Security best practice: always run updates on first boot.
+          echo "--- Updating packages ---"
+          dnf update -y
+
+          # Install nginx — a high-performance web server.
+          # nginx will serve our HTML page to visitors.
+          echo "--- Installing nginx ---"
+          dnf install -y nginx
+
+          # Write our custom welcome page.
+          # This is what visitors see when they open the website URL.
+          echo "--- Writing index.html ---"
+          cat > /usr/share/nginx/html/index.html << 'HTMLEOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Hello from AWS EC2! ☁️</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                display: flex; justify-content: center; align-items: center;
+                min-height: 100vh; margin: 0;
+                background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+                color: white;
+              }
+              .card {
+                background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(255,255,255,0.2);
+                border-radius: 16px; padding: 48px; text-align: center;
+                max-width: 640px; backdrop-filter: blur(10px);
+              }
+              .emoji { font-size: 64px; margin-bottom: 16px; }
+              h1 { font-size: 2rem; margin: 0 0 12px; }
+              p { font-size: 1rem; opacity: 0.85; line-height: 1.6; }
+              .badge {
+                display: inline-block; background: #c9a84c; color: #1e1e1e;
+                border-radius: 20px; padding: 4px 16px; font-size: 0.85rem;
+                font-weight: 600; margin-top: 20px;
+              }
+              .meta { margin-top: 24px; font-size: 0.8rem; opacity: 0.6; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <div class="emoji">🖥️</div>
+              <h1>Hello from ${ProjectName} on AWS EC2!</h1>
+              <p>This server was created <strong>automatically</strong> by CloudFormation.<br>
+              No manual setup. No clicking in the console. Just YAML.</p>
+              <div class="badge">✅ Stack 2 deployed successfully</div>
+              <div class="meta">
+                <p>Stack: ${AWS::StackName}</p>
+                <p>Region: ${AWS::Region}</p>
+                <p>Environment: ${Environment}</p>
+                <p>"We pushed a text file. A server appeared. That's IaC."</p>
+              </div>
+            </div>
+          </body>
+          </html>
+          HTMLEOF
+
+          # Enable nginx to start automatically on every reboot.
+          # Without this, the web server would stop if the instance restarts.
+          echo "--- Enabling and starting nginx ---"
+          systemctl enable nginx
+          systemctl start nginx
+
+          echo "=== Setup complete! Nginx is running. ==="
+
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-webserver-${Environment}"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ===========================================================================
+  # ELASTIC IP — a permanent public IP address
+  # ===========================================================================
+  # By default, an EC2 instance's IP address changes every time it restarts.
+  # An Elastic IP (EIP) gives your server a PERMANENT, FIXED IP address —
+  # so your website URL never changes even if the instance restarts.
+  # FREE TIER: EIPs are free ONLY when attached to a running instance.
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    # DependsOn: make sure the VPC Gateway is attached before allocating the EIP.
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      # Domain: "vpc" is required for EIPs inside a VPC (standard since 2013).
+      Domain: vpc
+      # InstanceId: attach this EIP to our web server instance.
+      InstanceId: !Ref WebServer
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-eip-${Environment}"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+Outputs:
+
+  PublicIP:
+    Description: >
+      The permanent public IP address of your web server.
+      This IP never changes even if the instance restarts.
+    Value: !Ref ElasticIP
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicIP"
+
+  WebsiteURL:
+    Description: >
+      Your live website URL. Open this in a browser to see the nginx welcome page.
+      It may take 1-2 minutes after deploy for UserData setup to complete.
+    Value: !Sub "http://${ElasticIP}"
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteURL"
+
+  InstanceId:
+    Description: >
+      The EC2 Instance ID. Use this to connect via SSM Session Manager
+      (no SSH needed — just the command below).
+    Value: !Ref WebServer
+    Export:
+      Name: !Sub "${AWS::StackName}-InstanceId"
+
+  SSMConnectCommand:
+    Description: >
+      Run this command to open a shell on your server WITHOUT SSH.
+      Requires AWS CLI and SSM plugin installed locally.
+      SECURITY: This is far safer than opening port 22.
+    Value: !Sub "aws ssm start-session --target ${WebServer} --region ${AWS::Region}"
+
+  EC2ConsoleURL:
+    Description: Direct link to view this instance in the AWS Console.
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/ec2/v2/home?region=${AWS::Region}#Instances:instanceId=${WebServer}"

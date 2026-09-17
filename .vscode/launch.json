@@ -1,0 +1,52 @@
+{
+  // ==========================================================================
+  // .vscode/launch.json — VS Code Launch Configurations
+  // ==========================================================================
+  //
+  // WHAT IS THIS FILE?
+  //   Normally this file is for debugging applications (Node.js, Python, etc.).
+  //   Since cloud-in-action is pure YAML infrastructure (no application code
+  //   to debug), we use this file to provide a quick shortcut to show stack
+  //   outputs — useful for demos and learners exploring the project.
+  //
+  // HOW TO USE:
+  //   1. Open this project in VS Code
+  //   2. Press F5 (or click the Run/Debug icon in the sidebar)
+  //   3. Select "📋 Show Live Stack Outputs" from the dropdown
+  //   4. The integrated terminal will show all deployed URLs and IDs
+  //
+  // ==========================================================================
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "📋 Show Live Stack Outputs",
+      "type": "node",
+      // Use preLaunchTask to run our "Show All Stack Outputs" task.
+      // This shows all deployed resource URLs in the terminal.
+      "preLaunchTask": "📋 Show All Stack Outputs",
+      "request": "launch",
+      "program": "${workspaceFolder}/README.md",
+      // noDebug: true means this is a "run" not a "debug" — no breakpoints.
+      "noDebug": true,
+      // presentation: where to show this config in the Run dropdown.
+      "presentation": {
+        "hidden": false,
+        "group": "cloud-in-action",
+        "order": 1
+      }
+    },
+    {
+      "name": "☁️ Validate All Templates",
+      "type": "node",
+      "preLaunchTask": "☁️ Validate All Templates",
+      "request": "launch",
+      "program": "${workspaceFolder}/README.md",
+      "noDebug": true,
+      "presentation": {
+        "hidden": false,
+        "group": "cloud-in-action",
+        "order": 2
+      }
+    }
+  ]
+}

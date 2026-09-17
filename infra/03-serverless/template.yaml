@@ -1,0 +1,365 @@
+# =============================================================================
+# STACK 3: "Hello, Serverless"
+# =============================================================================
+#
+# WHAT THIS TEMPLATE DOES:
+#   Creates a serverless API using AWS Lambda + API Gateway.
+#   Visitors hit a URL and get a JSON response — but there is NO SERVER
+#   running anywhere. The code only runs (and costs money) when called.
+#
+# WHY SERVERLESS?
+#   - No server to manage, patch, or maintain
+#   - Pay ONLY when your code runs (first 1,000,000 requests/month FREE)
+#   - Scales from 0 to 1,000,000 concurrent requests automatically
+#   - This entire API costs approximately $0.0000002 per request at demo scale
+#   - Perfect for APIs, webhooks, event-driven tasks
+#
+# WHAT YOU WILL LEARN:
+#   1. What AWS Lambda is (code that runs without a server)
+#   2. What API Gateway is (the front door to your Lambda functions)
+#   3. What IAM Roles are for Lambda (least-privilege permissions)
+#   4. What CloudWatch Logs are (where your Lambda logs go)
+#   5. The "pay per use" cloud pricing model
+#
+# FREE TIER:
+#   - Lambda: 1,000,000 requests/month FREE forever (not just 12 months)
+#   - API Gateway: 1,000,000 HTTP API calls/month FREE for 12 months
+#   - CloudWatch Logs: 5 GB ingestion FREE per month
+#   Total demo cost: $0.00
+#
+# HOW TO DEPLOY (from your terminal):
+#   aws cloudformation deploy \
+#     --template-file infra/03-serverless/template.yaml \
+#     --stack-name cloud-in-action-serverless \
+#     --parameter-overrides ProjectName=cloud-in-action Environment=dev \
+#     --capabilities CAPABILITY_NAMED_IAM
+#
+# =============================================================================
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Stack 3 of 3 — "Hello, Serverless"
+  Creates a Lambda function + HTTP API Gateway.
+  Visit the ApiUrl output to see a live JSON response — no server required.
+  FREE TIER: $0.00 at demo scale (1M Lambda requests/month free forever).
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+Parameters:
+
+  ProjectName:
+    Type: String
+    Default: cloud-in-action
+    Description: Project name — used in resource names and the Lambda response.
+    AllowedPattern: "[a-z0-9-]+"
+    ConstraintDescription: "Lowercase letters, numbers, and hyphens only."
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment.
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+Resources:
+
+  # ===========================================================================
+  # CLOUDWATCH LOG GROUP — where Lambda writes its logs
+  # ===========================================================================
+  # Every time your Lambda function runs, it writes logs here.
+  # CloudWatch Logs is like the server's console output — you can see
+  # exactly what happened when someone called your API.
+  # We create the log group BEFORE the Lambda so we can set retention.
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # Lambda automatically uses /aws/lambda/{FunctionName} as the log group.
+      LogGroupName: !Sub "/aws/lambda/${ProjectName}-hello-${Environment}"
+      # RetentionInDays: how long to keep logs before auto-deleting.
+      # 7 days is fine for a demo. Production: 30-90 days.
+      # Without this, logs are kept FOREVER and can slowly accumulate cost.
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ===========================================================================
+  # IAM ROLE FOR LAMBDA — least-privilege permissions
+  # ===========================================================================
+  # Lambda needs permission to write its own logs to CloudWatch.
+  # That's ALL we grant here — nothing more. This is the principle of
+  # "least privilege": only give the permissions that are actually needed.
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-lambda-role-${Environment}"
+
+      # AssumeRolePolicyDocument: who can USE this role?
+      # "lambda.amazonaws.com" = only AWS Lambda service can assume this role.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      # Inline policy: grant ONLY the permissions needed to write logs.
+      # This is intentionally minimal — Lambda doesn't need S3, EC2, or anything else.
+      Policies:
+        - PolicyName: LambdaLoggingPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  # These three actions are the bare minimum to write CloudWatch Logs.
+                  - logs:CreateLogGroup     # Create the log group (if it doesn't exist)
+                  - logs:CreateLogStream    # Create a log stream within the group
+                  - logs:PutLogEvents       # Write log entries
+                # Resource: restrict to ONLY this function's log group — not all logs!
+                Resource: !GetAtt LambdaLogGroup.Arn
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ===========================================================================
+  # LAMBDA FUNCTION — the code that runs without a server
+  # ===========================================================================
+  # AWS Lambda executes your code in response to events (an HTTP request,
+  # a scheduled timer, an S3 upload, etc.). You pay ONLY for the time
+  # your code is actually running — charged in 1ms increments.
+  HelloLambda:
+    Type: AWS::Lambda::Function
+    # DependsOn: create the log group BEFORE the function so retention is set.
+    DependsOn: LambdaLogGroup
+    Properties:
+      FunctionName: !Sub "${ProjectName}-hello-${Environment}"
+
+      # Runtime: which programming language to use.
+      # Python 3.12 is the latest stable Lambda runtime as of 2024.
+      Runtime: python3.12
+
+      # Handler: which file and function to call when Lambda is triggered.
+      # "index.handler" means: in the file "index.py", call the "handler" function.
+      Handler: index.handler
+
+      # Role: the IAM role we created above — grants permission to write logs.
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+      # MemorySize: how much RAM to give the function.
+      # 128 MB is the minimum — perfect for this simple demo.
+      # More memory = faster execution but higher cost.
+      MemorySize: 128
+
+      # Timeout: maximum seconds the function can run before AWS kills it.
+      # 30 seconds is generous for a simple JSON response (usually takes ~5ms).
+      Timeout: 30
+
+      # Code.ZipFile: write Python code INLINE in the YAML template.
+      # For simple demos this is ideal — no S3 bucket or zip file needed.
+      # For production, use a deployment package stored in S3.
+      Code:
+        ZipFile: |
+          # =================================================================
+          # Lambda Function: Hello from cloud-in-action
+          # =================================================================
+          # This function runs in AWS without any server.
+          # It receives an HTTP request from API Gateway, runs this code,
+          # and returns a JSON response in milliseconds.
+          # =================================================================
+
+          import json
+          import datetime
+          import os
+
+          def handler(event, context):
+              """
+              The Lambda handler function.
+
+              Parameters:
+                  event   - the incoming request data (from API Gateway)
+                  context - runtime information about the Lambda invocation
+
+              Returns:
+                  A dictionary that API Gateway converts to an HTTP response.
+              """
+
+              # context.invoked_function_arn looks like:
+              # "arn:aws:lambda:us-east-1:123456789:function:my-function"
+              # Splitting on ":" and taking index 3 gives us the region.
+              region = context.invoked_function_arn.split(":")[3]
+
+              # Build the response body — this is what callers receive as JSON.
+              response_body = {
+                  "message": "Hello from AWS Lambda!",
+                  "project": os.environ.get("PROJECT_NAME", "cloud-in-action"),
+                  "environment": os.environ.get("ENVIRONMENT", "dev"),
+                  "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+                  "region": region,
+                  "requestId": context.aws_request_id,
+                  "remainingTimeMs": context.get_remaining_time_in_millis(),
+                  "funFact": (
+                      "This function ran for milliseconds and cost ~$0.0000002. "
+                      "First 1,000,000 requests per month are FREE forever."
+                  ),
+                  "whatIsThis": (
+                      "A serverless API — no EC2, no nginx, no patching. "
+                      "This code only runs when someone calls this URL."
+                  )
+              }
+
+              # Return an HTTP 200 response with JSON body.
+              # API Gateway reads this dictionary and creates the HTTP response.
+              return {
+                  "statusCode": 200,
+                  "headers": {
+                      "Content-Type": "application/json",
+                      # Allow this API to be called from any web page (CORS).
+                      "Access-Control-Allow-Origin": "*"
+                  },
+                  "body": json.dumps(response_body, indent=2)
+              }
+
+      # Environment variables passed to the Lambda function at runtime.
+      # These can be read with os.environ.get() inside the function.
+      Environment:
+        Variables:
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+
+      # Description appears in the Lambda console — helpful for teams.
+      Description: !Sub >
+        cloud-in-action demo Lambda function (${Environment}).
+        Returns a JSON greeting with serverless metadata.
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ===========================================================================
+  # API GATEWAY (HTTP API) — the front door to your Lambda
+  # ===========================================================================
+  # API Gateway receives HTTP requests from the internet and routes them
+  # to your Lambda function. It handles TLS (HTTPS), authentication hooks,
+  # throttling, and more.
+  # We use "HTTP API" (not "REST API") — it's simpler, cheaper, and faster.
+  HelloApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub "${ProjectName}-api-${Environment}"
+      # ProtocolType: HTTP = HTTP API (v2). REST would use ApiGateway v1.
+      ProtocolType: HTTP
+      Description: !Sub >
+        cloud-in-action HTTP API (${Environment}).
+        Routes GET /hello to the HelloLambda function.
+      # CorsConfiguration: allow browsers to call this API from any website.
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+        AllowHeaders:
+          - Content-Type
+      Tags:
+        Project: !Ref ProjectName
+        ManagedBy: CloudFormation
+
+  # INTEGRATION — tells API Gateway HOW to call the Lambda function.
+  # AWS_PROXY integration means API Gateway passes the full request to Lambda
+  # and Lambda controls the full response. This is the most flexible option.
+  LambdaIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HelloApi
+      # IntegrationType: AWS_PROXY = pass everything to Lambda, return everything from Lambda.
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt HelloLambda.Arn
+      # PayloadFormatVersion: "2.0" is the latest format for HTTP APIs.
+      PayloadFormatVersion: "2.0"
+      IntegrationMethod: POST   # API Gateway always uses POST to invoke Lambda
+
+  # ROUTE — maps an HTTP method + path to an integration.
+  # This says: "When someone does GET /hello, call the Lambda integration."
+  HelloRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HelloApi
+      # RouteKey: the HTTP method + path. "$default" would catch all routes.
+      RouteKey: "GET /hello"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  # STAGE — a named version of your API deployment.
+  # "$default" auto-deploys every change without needing a manual deploy step.
+  # For production, use named stages (v1, v2) for controlled rollouts.
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HelloApi
+      StageName: "$default"
+      # AutoDeploy: automatically deploy changes — great for demos.
+      AutoDeploy: true
+      Tags:
+        Project: !Ref ProjectName
+        ManagedBy: CloudFormation
+
+  # LAMBDA PERMISSION — allows API Gateway to INVOKE the Lambda function.
+  # Without this, API Gateway would be blocked by Lambda's resource policy
+  # and receive a 403 Forbidden error.
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt HelloLambda.Arn
+      # Action: which Lambda action to allow.
+      Action: lambda:InvokeFunction
+      # Principal: who is allowed to invoke? In this case, API Gateway.
+      Principal: apigateway.amazonaws.com
+      # SourceArn: restrict to ONLY our specific API — not any API Gateway.
+      # This prevents other API Gateways from invoking our function.
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HelloApi}/*/*"
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+Outputs:
+
+  ApiUrl:
+    Description: >
+      Your live serverless API URL. Open this in a browser to see the JSON response.
+      No server. No patching. Just code running in the cloud.
+    Value: !Sub "https://${HelloApi}.execute-api.${AWS::Region}.amazonaws.com/hello"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiUrl"
+
+  LambdaFunctionName:
+    Description: The Lambda function name — use this in the AWS Console to view code and logs.
+    Value: !Ref HelloLambda
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaFunctionName"
+
+  CloudWatchLogGroup:
+    Description: >
+      Direct link to this function's logs in CloudWatch.
+      Every Lambda invocation is logged here automatically.
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logsV2:log-groups/log-group/$252Faws$252Flambda$252F${HelloLambda}"
+
+  LambdaConsoleURL:
+    Description: Direct link to view and edit this function in the AWS Console.
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions/${HelloLambda}"
+
+  ApiGatewayConsoleURL:
+    Description: Direct link to view this API in the API Gateway console.
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/apigateway/main/apis/${HelloApi}/routes?region=${AWS::Region}"

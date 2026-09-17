@@ -1,0 +1,130 @@
+# =============================================================================
+# WORKFLOW: deploy-stack3.yml
+# =============================================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   1. You push code to GitHub (or trigger manually)
+#   2. GitHub asks a human: "Are you sure you want to deploy?"
+#   3. Human clicks Approve
+#   4. AWS creates: IAM Role → Lambda Function → API Gateway → Log Group
+#   5. A live HTTPS API endpoint appears in the workflow log
+#   6. Click the URL — get a JSON response — NO server running anywhere
+#   Total time: ~1 minute from approval to live API
+#
+# THE SERVERLESS "WOW MOMENT":
+#   After deploying, open the ApiUrl output in a browser.
+#   You get a JSON response instantly.
+#   Then ask the audience: "Where is the server?"
+#   Answer: "There isn't one. AWS ran your code for milliseconds,
+#            charged you $0.0000002, and stopped. No server. No bill."
+#
+# =============================================================================
+
+name: "🚀 Deploy Stack 3 — Serverless (Lambda)"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/03-serverless/**"
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev / staging / prod)"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  deploy:
+    name: "Deploy Lambda + API Gateway"
+    runs-on: ubuntu-latest
+
+    # ── THE APPROVAL GATE ───────────────────────────────────────────────────
+    environment: production
+
+    steps:
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+
+      - name: "🔐 Configure AWS credentials"
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502  # v4.0.2
+        # SECURITY: Pinned SHA prevents supply chain attacks.
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: "⚙️ Set environment variables"
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "DEPLOY_ENV=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
+          else
+            echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
+          fi
+          echo "STACK_NAME=cloud-in-action-serverless-${{ github.ref_name }}" >> $GITHUB_ENV
+
+      - name: "🏗️ Deploy Stack 3 — Lambda + API Gateway"
+        run: |
+          echo "Deploying stack: $STACK_NAME"
+          echo "This creates: CloudWatch Log Group, IAM Role, Lambda, API Gateway"
+          echo "Expected time: ~1 minute"
+          echo ""
+
+          aws cloudformation deploy \
+            --template-file infra/03-serverless/template.yaml \
+            --stack-name "$STACK_NAME" \
+            --parameter-overrides \
+              ProjectName=cloud-in-action \
+              Environment="$DEPLOY_ENV" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+
+          echo "Stack deployed! Your serverless API is ready."
+
+      - name: "📋 Show stack outputs"
+        run: |
+          echo ""
+          echo "=== Stack Outputs ==="
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs' \
+            --output table
+
+      - name: "🌐 Test the live API"
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
+            --output text)
+
+          echo "Testing API: $API_URL"
+          echo ""
+
+          # Call the API and pretty-print the JSON response.
+          # curl -s = silent (no progress bar), | python3 = format JSON
+          RESPONSE=$(curl -s "$API_URL")
+          echo "API Response:"
+          echo "$RESPONSE" | python3 -m json.tool || echo "$RESPONSE"
+
+          echo ""
+          echo "╔════════════════════════════════════════════════════════════════╗"
+          echo "║  🎉 Stack 3 deployed and tested successfully!                 ║"
+          echo "║                                                                ║"
+          echo "║  Your serverless API is live at:                              ║"
+          echo "║  $API_URL"
+          echo "║                                                                ║"
+          echo "║  Open the URL above in your browser!                          ║"
+          echo "║  No server. No patching. Just code running in the cloud.      ║"
+          echo "║                                                                ║"
+          echo "║  REMEMBER: Run teardown workflow when done!                   ║"
+          echo "╚════════════════════════════════════════════════════════════════╝"

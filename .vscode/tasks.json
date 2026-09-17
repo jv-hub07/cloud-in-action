@@ -1,0 +1,142 @@
+{
+  // ==========================================================================
+  // .vscode/tasks.json — VS Code Tasks for cloud-in-action
+  // ==========================================================================
+  //
+  // WHAT IS THIS FILE?
+  //   VS Code Tasks let you run terminal commands from the Command Palette
+  //   or the Terminal menu — with one click, no typing required.
+  //
+  // HOW TO USE:
+  //   1. Open this project in VS Code
+  //   2. Press Ctrl+Shift+P (or Cmd+Shift+P on Mac)
+  //   3. Type "Tasks: Run Task"
+  //   4. Choose any task from the list below
+  //
+  // PREREQUISITES:
+  //   - AWS CLI installed and configured (aws configure)
+  //   - Your IAM user has CloudFormation, S3, EC2, Lambda permissions
+  //
+  // ==========================================================================
+  "version": "2.0.0",
+  "tasks": [
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // TASK 1: Validate all templates
+    // Checks all three CFN templates for errors WITHOUT deploying anything.
+    // Run this first to catch mistakes before touching AWS.
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+      "label": "☁️ Validate All Templates",
+      "detail": "Check all 3 CloudFormation templates for errors (no AWS resources created)",
+      "type": "shell",
+      "command": "echo 'Validating Stack 1...' && aws cloudformation validate-template --template-body file://infra/01-storage/template.yaml && echo '✅ Stack 1 valid' && echo 'Validating Stack 2...' && aws cloudformation validate-template --template-body file://infra/02-server/template.yaml && echo '✅ Stack 2 valid' && echo 'Validating Stack 3...' && aws cloudformation validate-template --template-body file://infra/03-serverless/template.yaml && echo '✅ Stack 3 valid' && echo '' && echo '🎉 All templates are valid!'",
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // TASK 2: Deploy Stack 1 — S3 Static Website
+    // Creates the S3 bucket and bucket policy. ~30 seconds.
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+      "label": "🚀 Deploy Stack 1 (Storage — S3 Website)",
+      "detail": "Creates S3 bucket with static website hosting. FREE TIER: $0.00",
+      "type": "shell",
+      "command": "aws cloudformation deploy --template-file infra/01-storage/template.yaml --stack-name cloud-in-action-storage-local --parameter-overrides ProjectName=cloud-in-action Environment=dev --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset && echo '' && echo '📋 Stack Outputs:' && aws cloudformation describe-stacks --stack-name cloud-in-action-storage-local --query 'Stacks[0].Outputs' --output table",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // TASK 3: Deploy Stack 2 — EC2 Web Server
+    // Creates VPC, EC2, nginx web server. ~3-4 minutes.
+    // NOTE: Wait 2 minutes after deploy for nginx to finish installing.
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+      "label": "🚀 Deploy Stack 2 (Server — EC2 + nginx)",
+      "detail": "Creates VPC, EC2 t2.micro, nginx server. FREE TIER: $0.00 for 12 months",
+      "type": "shell",
+      "command": "aws cloudformation deploy --template-file infra/02-server/template.yaml --stack-name cloud-in-action-server-local --parameter-overrides ProjectName=cloud-in-action Environment=dev InstanceType=t2.micro --capabilities CAPABILITY_NAMED_IAM --no-fail-on-empty-changeset && echo '' && echo '📋 Stack Outputs:' && aws cloudformation describe-stacks --stack-name cloud-in-action-server-local --query 'Stacks[0].Outputs' --output table",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // TASK 4: Deploy Stack 3 — Lambda + API Gateway
+    // Creates Lambda function and HTTP API. ~1 minute.
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+      "label": "🚀 Deploy Stack 3 (Serverless — Lambda + API Gateway)",
+      "detail": "Creates Lambda function and API Gateway. FREE TIER: $0.00 (1M requests/month forever)",
+      "type": "shell",
+      "command": "aws cloudformation deploy --template-file infra/03-serverless/template.yaml --stack-name cloud-in-action-serverless-local --parameter-overrides ProjectName=cloud-in-action Environment=dev --capabilities CAPABILITY_NAMED_IAM --no-fail-on-empty-changeset && echo '' && echo '📋 Stack Outputs:' && aws cloudformation describe-stacks --stack-name cloud-in-action-serverless-local --query 'Stacks[0].Outputs' --output table",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // TASK 5: Show All Stack Outputs
+    // Prints the outputs (URLs, IPs, IDs) for all deployed stacks.
+    // Run this any time to see your live resources.
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+      "label": "📋 Show All Stack Outputs",
+      "detail": "Display URLs, IPs, and resource IDs for all deployed stacks",
+      "type": "shell",
+      "command": "echo '=== Stack 1: Storage ===' && aws cloudformation describe-stacks --stack-name cloud-in-action-storage-local --query 'Stacks[0].Outputs' --output table 2>/dev/null || echo 'Stack 1 not deployed' && echo '' && echo '=== Stack 2: Server ===' && aws cloudformation describe-stacks --stack-name cloud-in-action-server-local --query 'Stacks[0].Outputs' --output table 2>/dev/null || echo 'Stack 2 not deployed' && echo '' && echo '=== Stack 3: Serverless ===' && aws cloudformation describe-stacks --stack-name cloud-in-action-serverless-local --query 'Stacks[0].Outputs' --output table 2>/dev/null || echo 'Stack 3 not deployed'",
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // TASK 6: Teardown ALL Stacks
+    // DELETES all three stacks and ALL AWS resources they created.
+    // RUN THIS AFTER YOUR DEMO to avoid any AWS charges.
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+      "label": "🗑️ Teardown ALL Stacks (⚠️ Deletes AWS Resources)",
+      "detail": "⚠️ DESTRUCTIVE: Deletes all 3 stacks and all AWS resources. Run after demo.",
+      "type": "shell",
+      "command": "echo '⚠️  TEARDOWN: Deleting all stacks...' && echo 'Emptying S3 bucket...' && BUCKET=$(aws cloudformation describe-stacks --stack-name cloud-in-action-storage-local --query 'Stacks[0].Outputs[?OutputKey==`BucketName`].OutputValue' --output text 2>/dev/null) && [ -n \"$BUCKET\" ] && aws s3 rm s3://$BUCKET --recursive || true && echo 'Deleting Stack 1...' && aws cloudformation delete-stack --stack-name cloud-in-action-storage-local 2>/dev/null || true && echo 'Deleting Stack 2...' && aws cloudformation delete-stack --stack-name cloud-in-action-server-local 2>/dev/null || true && echo 'Deleting Stack 3...' && aws cloudformation delete-stack --stack-name cloud-in-action-serverless-local 2>/dev/null || true && echo '' && echo '✅ Teardown initiated. Stacks are deleting in background.' && echo 'Check AWS Console → CloudFormation to confirm deletion.'",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
