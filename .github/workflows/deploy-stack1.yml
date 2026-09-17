@@ -11,14 +11,14 @@
 #   Total time: ~30 seconds from approval to live website
 #
 # HOW TO SET UP THE APPROVAL GATE:
-#   1. Go to your GitHub repo → Settings → Environments
-#   2. Click "New environment" → name it "production"
-#   3. Enable "Required reviewers" → add yourself
+#   1. Go to your GitHub repo -> Settings -> Environments
+#   2. Click "New environment" -> name it "production"
+#   3. Enable "Required reviewers" -> add yourself
 #   4. Save. Now every deploy to production requires your approval.
 #
 # =============================================================================
 
-name: "Deploy Stack 1 — Storage (S3)"
+name: "Deploy Stack 1 - Storage (S3)"
 
 # ── TRIGGERS ─────────────────────────────────────────────────────────────────
 on:
@@ -29,7 +29,7 @@ on:
     paths:
       - "infra/01-storage/**"   # Only run when Stack 1 files change
 
-  # Trigger manually from the GitHub UI (Actions tab → Run workflow).
+  # Trigger manually from the GitHub UI (Actions tab -> Run workflow).
   workflow_dispatch:
     inputs:
       environment:
@@ -50,8 +50,6 @@ jobs:
     # ── THE APPROVAL GATE ───────────────────────────────────────────────────
     # environment: production means GitHub will PAUSE here and wait for a
     # human to click "Approve" before continuing to the deploy steps.
-    # This is the magic that makes non-technical audiences say "wow".
-    # Without the approval gate, deployments run immediately on push.
     environment: production
 
     steps:
@@ -92,7 +90,7 @@ jobs:
       #   2. Computes what needs to change (the "changeset")
       #   3. Creates or updates the stack in AWS
       #   4. Waits until complete (or fails)
-      - name: "🏗️ Deploy Stack 1 — S3 Static Website"
+      - name: "🏗️ Deploy Stack 1 - S3 Static Website"
         run: |
           echo "Deploying stack: $STACK_NAME"
           echo "Environment: $DEPLOY_ENV"

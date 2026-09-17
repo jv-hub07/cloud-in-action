@@ -6,20 +6,20 @@
 #   1. You push code to GitHub (or trigger manually)
 #   2. GitHub asks a human: "Are you sure you want to deploy?"
 #   3. Human clicks Approve in the GitHub UI
-#   4. AWS creates: VPC → Subnet → IGW → Security Group → EC2 → Elastic IP
+#   4. AWS creates: VPC -> Subnet -> IGW -> Security Group -> EC2 -> Elastic IP
 #   5. EC2 boots, runs UserData script, installs nginx, serves the page
 #   6. The live website URL (http://ELASTIC_IP) appears in the workflow log
 #   Total time: ~3-4 minutes from approval to live server
 #
 # WHAT MAKES THIS IMPRESSIVE FOR A LIVE DEMO:
-#   - Open the AWS Console → CloudFormation → Stack → Events tab
+#   - Open the AWS Console -> CloudFormation -> Stack -> Events tab
 #   - Watch EACH RESOURCE being created in real time (VPC, then Subnet,
-#     then IGW, then EC2...) — the audience sees the infrastructure
+#     then IGW, then EC2...) - the audience sees the infrastructure
 #     being ASSEMBLED like LEGO blocks, automatically.
 #
 # =============================================================================
 
-name: "🚀 Deploy Stack 2 — Server (EC2)"
+name: "🚀 Deploy Stack 2 - Server (EC2)"
 
 on:
   push:
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # ── THE APPROVAL GATE ───────────────────────────────────────────────────
-    # This is the "wow moment" — a human must approve before a server is born.
+    # This is the "wow moment" - a human must approve before a server is born.
     # Show this screen to your audience: "Waiting for approval..."
     environment: production
 
@@ -78,7 +78,7 @@ jobs:
       # CAPABILITY_NAMED_IAM is required because this template creates
       # IAM resources (the EC2 role and instance profile).
       # CloudFormation requires you to explicitly acknowledge this.
-      - name: "🏗️ Deploy Stack 2 — EC2 Web Server"
+      - name: "🏗️ Deploy Stack 2 - EC2 Web Server"
         run: |
           echo "Deploying stack: $STACK_NAME"
           echo "This creates: VPC, Subnet, IGW, Security Group, EC2, Elastic IP"

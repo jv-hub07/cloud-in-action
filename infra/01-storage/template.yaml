@@ -4,12 +4,12 @@
 #
 # WHAT THIS TEMPLATE DOES:
 #   Creates an Amazon S3 bucket configured as a static website host.
-#   You upload an HTML file once, and the whole world can visit it —
+#   You upload an HTML file once, and the whole world can visit it -
 #   no servers, no maintenance, no surprise bills.
 #
 # WHAT YOU WILL LEARN:
 #   1. What a CloudFormation Template is (a recipe for cloud resources)
-#   2. What Amazon S3 is (cloud object storage — like a USB drive in the sky)
+#   2. What Amazon S3 is (cloud object storage - like a USB drive in the sky)
 #   3. What "Parameters" and "Outputs" are in CloudFormation
 #   4. What "deploying a stack" means
 #
@@ -25,22 +25,22 @@
 # =============================================================================
 
 # AWSTemplateFormatVersion tells CloudFormation which version of the
-# template language to use. Always use "2010-09-09" — it's the only
+# template language to use. Always use "2010-09-09" - it's the only
 # supported version and has been stable for over a decade.
 AWSTemplateFormatVersion: "2010-09-09"
 
 # Description appears in the AWS Console so you know
 # what this stack does without reading the whole template.
 Description: >
-  Stack 1 of 3 — "Hello, I am a Cloud Storage"
+  Stack 1 of 3 - "Hello, I am a Cloud Storage"
   Creates an S3 bucket configured as a static website.
   Part of the cloud-in-action demo repository.
   FREE TIER: $0.00 cost at demo scale.
 
 # =============================================================================
-# PARAMETERS — inputs you provide when deploying the stack
+# PARAMETERS - inputs you provide when deploying the stack
 # Think of these like variables in a recipe:
-# "How many cups of flour?" → you decide at bake time.
+# "How many cups of flour?" -> you decide at bake time.
 # =============================================================================
 Parameters:
 
@@ -52,27 +52,27 @@ Parameters:
     Description: >
       A short name for your project. Used to name the S3 bucket.
       Must be lowercase letters, numbers, and hyphens only.
-    # AllowedPattern restricts what values are valid — input validation in IaC!
+    # AllowedPattern restricts what values are valid - input validation in IaC!
     AllowedPattern: "[a-z0-9-]+"
     ConstraintDescription: "Must be lowercase letters, numbers, and hyphens only."
     MinLength: 3
     MaxLength: 40
 
   # Environment lets you deploy separate stacks for dev, qa, and prod
-  # from the SAME template — just change this parameter.
+  # from the SAME template - just change this parameter.
   Environment:
     Type: String
     Default: dev
     AllowedValues:
-      - dev       # Development — safe to experiment
-      - qa   # Pre-production — testing before release
-      - prod      # Production — real users, be careful!
+      - dev       # Development - safe to experiment
+      - qa   # Pre-production - testing before release
+      - prod      # Production - real users, be careful!
     Description: >
       Deployment environment. Controls resource naming so you can have
       separate dev and prod buckets from the same template.
 
 # =============================================================================
-# RESOURCES — the actual AWS infrastructure to create
+# RESOURCES - the actual AWS infrastructure to create
 # This is the heart of the template. Each entry here = one AWS resource
 # that CloudFormation will create, update, or delete on your behalf.
 # =============================================================================
@@ -80,7 +80,7 @@ Resources:
 
   # ---------------------------------------------------------------------------
   # THE S3 BUCKET
-  # Amazon S3 (Simple Storage Service) stores files — called "objects" —
+  # Amazon S3 (Simple Storage Service) stores files - called "objects" -
   # inside containers called "buckets". A bucket is like a folder in the cloud
   # that never gets full and never gets lost.
   # ---------------------------------------------------------------------------
@@ -96,11 +96,10 @@ Resources:
 
     Properties:
       # BucketName: we combine ProjectName + Environment to make it unique.
-      # !Sub is CloudFormation's string interpolation — like f-strings in Python.
+      # !Sub is CloudFormation's string interpolation - like f-strings in Python.
       # ${ProjectName} is replaced with the parameter value at deploy time.
       BucketName: !Sub "${ProjectName}-website-${Environment}-${AWS::AccountId}"
-      #                                                           ^^^^^^^^^^^^^^^
-      # Including the AWS Account ID guarantees global uniqueness —
+      # Including the AWS Account ID guarantees global uniqueness -
       # no two accounts have the same ID.
 
       # WebsiteConfiguration turns this storage bucket into a web server.
@@ -145,42 +144,36 @@ Resources:
       Bucket: !Ref WebsiteBucket
 
       PolicyDocument:
-        Version: "2012-10-17"   # IAM policy language version — always use this
+        Version: "2012-10-17"   # IAM policy language version - always use this
         Statement:
           - Sid: PublicReadGetObject   # Sid = Statement ID, a human-readable label
             Effect: Allow              # Allow (not Deny) the action below
             Principal: "*"             # "*" means EVERYONE (the public internet)
             Action: s3:GetObject       # GetObject = read/download a file
             Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/*"
-            #               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            # ARN = Amazon Resource Name — the unique identifier for any AWS resource.
+            # ARN = Amazon Resource Name - the unique identifier for any AWS resource.
             # The /* at the end means "all objects inside the bucket".
 
   # ---------------------------------------------------------------------------
-  # THE WELCOME PAGE (uploaded inline via CloudFormation)
+  # THE WELCOME PAGE (uploaded via CloudFormation)
   # We use a Custom Resource backed by a Lambda to upload index.html.
-  # This is the "magic" — one template deploy creates the bucket AND
+  # This is the "magic" - one template deploy creates the bucket AND
   # puts content in it.
   # ---------------------------------------------------------------------------
-  # NOTE: For simplicity in this demo, we output the bucket URL and instruct
-  # the learner to upload index.html manually OR via the deploy workflow.
-  # A production pattern would use a Lambda-backed Custom Resource or
-  # aws s3 cp in the GitHub Actions workflow (see deploy-stack1.yml).
-
+  # NOTE: For simplicity in this demo, we output the bucket URL 
 # =============================================================================
-# OUTPUTS — values CloudFormation shows you after a successful deploy
+# OUTPUTS - values CloudFormation shows you after a successful deploy
 # These appear in the AWS Console under "Outputs" tab of your stack.
 # You can also query them with: aws cloudformation describe-stacks
 # =============================================================================
 Outputs:
 
-  # The live website URL — click this after deploying to see your site!
+  # The live website URL - click this after deploying to see your site!
   WebsiteURL:
     Description: >
       Your live static website URL. Open this in a browser after uploading
       index.html to see your site. Share this link with anyone!
     Value: !GetAtt WebsiteBucket.WebsiteURL
-    #      ^^^^^^^^
     # !GetAtt reads an ATTRIBUTE of a resource (not just its ID).
     # WebsiteBucket.WebsiteURL is the HTTP endpoint S3 creates for the website.
     Export:
@@ -188,7 +181,7 @@ Outputs:
       # Useful when stacks need to share values (e.g., EC2 stack reads S3 URL).
       Name: !Sub "${AWS::StackName}-WebsiteURL"
 
-  # The bucket name — useful for aws s3 cp commands
+  # The bucket name - useful for aws s3 cp commands
   BucketName:
     Description: >
       The S3 bucket name. Use this with 'aws s3 cp' to upload files:
@@ -197,7 +190,7 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-BucketName"
 
-  # S3 Console URL — direct link to the bucket in the AWS Console
+  # S3 Console URL - direct link to the bucket in the AWS Console
   BucketConsoleURL:
     Description: Direct link to view this bucket in the AWS Console.
     Value: !Sub "https://s3.console.aws.amazon.com/s3/buckets/${WebsiteBucket}?region=${AWS::Region}"

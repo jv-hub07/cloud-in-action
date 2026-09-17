@@ -6,9 +6,9 @@
 #   1. You push code to GitHub (or trigger manually)
 #   2. GitHub asks a human: "Are you sure you want to deploy?"
 #   3. Human clicks Approve
-#   4. AWS creates: IAM Role → Lambda Function → API Gateway → Log Group
+#   4. AWS creates: IAM Role -> Lambda Function -> API Gateway -> Log Group
 #   5. A live HTTPS API endpoint appears in the workflow log
-#   6. Click the URL — get a JSON response — NO server running anywhere
+#   6. Click the URL - get a JSON response - NO server running anywhere
 #   Total time: ~1 minute from approval to live API
 #
 # THE SERVERLESS "WOW MOMENT":
@@ -20,7 +20,7 @@
 #
 # =============================================================================
 
-name: "🚀 Deploy Stack 3 — Serverless (Lambda)"
+name: "🚀 Deploy Stack 3 - Serverless (Lambda)"
 
 on:
   push:
@@ -74,7 +74,7 @@ jobs:
           SAFE_BRANCH=$(echo "${{ github.ref_name }}" | tr '/' '-')
           echo "STACK_NAME=cloud-in-action-serverless-${SAFE_BRANCH}" >> $GITHUB_ENV
 
-      - name: "🏗️ Deploy Stack 3 — Lambda + API Gateway"
+      - name: "🏗️ Deploy Stack 3 - Lambda + API Gateway"
         run: |
           echo "Deploying stack: $STACK_NAME"
           echo "This creates: CloudWatch Log Group, IAM Role, Lambda, API Gateway"
