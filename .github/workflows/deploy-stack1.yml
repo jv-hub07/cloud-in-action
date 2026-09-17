@@ -10,11 +10,6 @@
 #   5. The live website URL appears in the workflow log
 #   Total time: ~30 seconds from approval to live website
 #
-# THE WOW MOMENT FOR NON-TECHNICAL AUDIENCES:
-#   The "environment: production" setting requires a human to review and
-#   approve BEFORE any AWS resources are created. This is how professional
-#   teams prevent accidental deployments and unexpected bills.
-#
 # HOW TO SET UP THE APPROVAL GATE:
 #   1. Go to your GitHub repo → Settings → Environments
 #   2. Click "New environment" → name it "production"
@@ -23,7 +18,7 @@
 #
 # =============================================================================
 
-name: "🚀 Deploy Stack 1 — Storage (S3)"
+name: "Deploy Stack 1 — Storage (S3)"
 
 # ── TRIGGERS ─────────────────────────────────────────────────────────────────
 on:
@@ -35,17 +30,16 @@ on:
       - "infra/01-storage/**"   # Only run when Stack 1 files change
 
   # Trigger manually from the GitHub UI (Actions tab → Run workflow).
-  # This is great for demos — you control exactly when to deploy.
   workflow_dispatch:
     inputs:
       environment:
-        description: "Target environment (dev / staging / prod)"
+        description: "Target environment (dev / qa / prod)"
         required: true
         default: "dev"
         type: choice
         options:
           - dev
-          - staging
+          - qa
           - prod
 
 jobs:

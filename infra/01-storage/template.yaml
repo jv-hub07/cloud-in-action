@@ -29,10 +29,10 @@
 # supported version and has been stable for over a decade.
 AWSTemplateFormatVersion: "2010-09-09"
 
-# Description appears in the AWS Console so you (and your team) know
+# Description appears in the AWS Console so you know
 # what this stack does without reading the whole template.
 Description: >
-  Stack 1 of 3 — "Hello, Cloud Storage"
+  Stack 1 of 3 — "Hello, I am a Cloud Storage"
   Creates an S3 bucket configured as a static website.
   Part of the cloud-in-action demo repository.
   FREE TIER: $0.00 cost at demo scale.
@@ -58,14 +58,14 @@ Parameters:
     MinLength: 3
     MaxLength: 40
 
-  # Environment lets you deploy separate stacks for dev, staging, and prod
+  # Environment lets you deploy separate stacks for dev, qa, and prod
   # from the SAME template — just change this parameter.
   Environment:
     Type: String
     Default: dev
     AllowedValues:
       - dev       # Development — safe to experiment
-      - staging   # Pre-production — testing before release
+      - qa   # Pre-production — testing before release
       - prod      # Production — real users, be careful!
     Description: >
       Deployment environment. Controls resource naming so you can have
@@ -90,8 +90,8 @@ Resources:
     Type: AWS::S3::Bucket
 
     # DeletionPolicy: what happens when you DELETE this stack?
-    # "Delete" = delete the bucket too (good for demos — no leftover charges)
-    # "Retain" = keep the bucket even after stack deletion (good for prod data)
+    # "Delete" = delete the bucket too (why? ~ no leftover charges)
+    # "Retain" = keep the bucket even after stack deletion 
     DeletionPolicy: Delete
 
     Properties:
