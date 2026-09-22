@@ -1,76 +1,525 @@
 <!DOCTYPE html>
-<!--
-  index.html — the page your S3 website will serve
-  Upload this file to your S3 bucket after deploying Stack 1:
-
-    aws s3 cp infra/01-storage/index.html s3://YOUR-BUCKET-NAME/index.html
-
-  Then visit the WebsiteURL output from the CloudFormation stack.
--->
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello, Cloud Storage! ☁️</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
-      color: white;
-    }
-    .card {
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 16px;
-      padding: 48px;
-      text-align: center;
-      max-width: 600px;
-      backdrop-filter: blur(10px);
-    }
-    .emoji { font-size: 64px; margin-bottom: 16px; }
-    h1 { font-size: 2rem; margin: 0 0 12px; }
-    p { font-size: 1.1rem; opacity: 0.85; line-height: 1.6; }
-    .badge {
-      display: inline-block;
-      background: #c9a84c;
-      color: #1e1e1e;
-      border-radius: 20px;
-      padding: 4px 16px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      margin-top: 20px;
-    }
-    .fact {
-      margin-top: 24px;
-      font-size: 0.9rem;
-      opacity: 0.7;
-      font-style: italic;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Modernizer | Serverless on AWS S3</title>
+
+    <!-- Google Fonts for Executive & Tech Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet">
+
+    <!-- Third-Party Libraries via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+		/* 
+         * ==========================================
+         * LUMINOUS TECH / MODERN CLINICAL DESIGN SYSTEM (LIGHT)
+         * ==========================================
+         */
+        :root {
+            --primary: #0f172a;      /* Deep Ink Navy */
+            --surface: #ffffff;      /* Pure Crisp Card Surface */
+            --surface-elevated: #f8fafc;
+            --accent: #0284c7;       /* Precision Tech Blue */
+            --accent-glow: rgba(2, 132, 199, 0.08);
+            --text-main: #0f172a;    /* High Contrast Ink */
+            --text-muted: #475569;   /* Slate Gray */
+            --border: #e2e8f0;       /* Crisp hairline border */
+            --radius: 12px;
+            --font-ui: 'Inter', sans-serif;
+            --font-serif: 'Merriweather', serif;
+            --font-mono: 'Fira Code', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: var(--font-ui); 
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e0f2fe 100%);
+            color: var(--text-main); 
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container { max-width: 1050px; margin: 0 auto; padding: 50px 20px; }
+
+        /* 
+         * ==========================================
+         * HEADER & PRIVACY BANNER
+         * ==========================================
+         */
+        header { text-align: center; margin-bottom: 35px; }
+        .app-title { 
+            font-size: 2.75rem; 
+            font-weight: 800; 
+            color: var(--primary);
+            letter-spacing: -0.03em; 
+            margin-bottom: 10px; 
+        }
+        .app-subtitle { font-size: 1.05rem; color: var(--text-muted); max-width: 620px; margin: 0 auto; font-weight: 400; }
+        
+        .security-banner {
+            background-color: #ecfdf5; 
+            border: 1px solid #a7f3d0; 
+            color: #047857;
+            padding: 14px 20px; border-radius: var(--radius); font-size: 0.95rem; font-weight: 500;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-bottom: 40px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.05);
+        }
+
+        /* 
+         * ==========================================
+         * UPLOAD ZONE & CONTROLS
+         * ==========================================
+         */
+        .upload-card { 
+            background: rgba(255, 255, 255, 0.85); 
+            backdrop-filter: blur(12px); 
+            border: 1px solid var(--border); 
+            border-radius: var(--radius); 
+            padding: 45px 20px; 
+            text-align: center; 
+            box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.06); 
+            margin-bottom: 30px; 
+        }
+        .drop-zone { 
+            border: 2px dashed rgba(2, 132, 199, 0.35); 
+            background: #f0f9ff; 
+            border-radius: var(--radius); 
+            padding: 45px 20px; 
+            cursor: pointer; 
+            transition: 0.3s; 
+        }
+        .drop-zone:hover { 
+            background: #e0f2fe; 
+            border-color: var(--accent); 
+            box-shadow: 0 0 20px rgba(2, 132, 199, 0.1); 
+        }
+        .file-input { display: none; }
+        
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: 0.2s; font-size: 0.95rem; }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15); }
+        .btn-primary:hover { background: #1e293b; transform: translateY(-1px); }
+        .btn-secondary { background: var(--surface); color: var(--text-main); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-success { background: #059669; color: white; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2); }
+        .btn-success:hover { background: #047857; }
+
+        .controls-panel { display: flex; flex-direction: column; gap: 20px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border: 1px solid var(--border); padding: 25px; border-radius: var(--radius); margin-bottom: 30px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.05); }
+        .control-group-top { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .control-group-bottom { display: flex; justify-content: center; gap: 15px; padding-top: 18px; border-top: 1px solid var(--border); }
+        
+        .template-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 9px 18px; border-radius: 8px; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: 0.2s; }
+        .template-btn:hover { color: var(--text-main); border-color: var(--text-muted); background: var(--surface-elevated); }
+        .template-btn.active { background: #e0f2fe; color: #0369a1; border-color: var(--accent); font-weight: 600; }
+
+        /* 
+         * ==========================================
+         * RESUME PREVIEW & TEMPLATES (Clean Paper on Clean Stage)
+         * ==========================================
+         */
+        .preview-wrapper { 
+            background: rgba(255, 255, 255, 0.6); 
+            border: 1px solid var(--border); 
+            border-radius: var(--radius); 
+            box-shadow: inset 0 2px 8px rgba(15, 23, 42, 0.03); 
+            padding: 50px 0; 
+            margin-bottom: 60px; 
+            display: flex; 
+            justify-content: center; 
+            overflow-x: auto; 
+        }
+        
+        #resume-container { width: 800px; min-height: 1000px; background: #ffffff; padding: 45px 55px; outline: none; color: #1e293b; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08); border-radius: 4px; border: 1px solid #f1f5f9; }
+        #resume-container [contenteditable="true"]:hover { outline: 1px dashed var(--accent); border-radius: 4px; }
+
+        /* Template 1: Executive Standard */
+        .tpl-exec { font-family: var(--font-serif); }
+        .tpl-exec .r-head { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 18px; margin-bottom: 25px; }
+        .tpl-exec .r-name { font-size: 2.2rem; font-weight: 700; text-transform: uppercase; color: #0f172a; margin-bottom: 5px; }
+        .tpl-exec .r-contact { font-family: var(--font-ui); font-size: 0.9rem; color: #475569; }
+        .tpl-exec .r-section { margin-bottom: 22px; }
+        .tpl-exec .r-title { font-family: var(--font-ui); font-size: 1.05rem; font-weight: 700; color: #0f172a; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 12px; letter-spacing: 0.05em; }
+        .tpl-exec .r-body { font-size: 0.95rem; color: #334155; }
+
+        /* Template 2: Minimalist Tech */
+        .tpl-tech { font-family: var(--font-ui); }
+        .tpl-tech .r-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #0284c7; padding-bottom: 12px; margin-bottom: 30px; }
+        .tpl-tech .r-name { font-size: 2.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.03em; }
+        .tpl-tech .r-contact { text-align: right; font-family: var(--font-mono); font-size: 0.8rem; color: #475569; }
+        .tpl-tech .r-section { margin-bottom: 25px; }
+        .tpl-tech .r-title { display: inline-block; background: #f0f9ff; color: #0369a1; padding: 4px 10px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; border-left: 3px solid #0284c7; letter-spacing: 0.05em; }
+        .tpl-tech .r-body { font-size: 0.95rem; color: #334155; }
+
+        /* Template 3: Two-Column Modern */
+        .tpl-dual { font-family: var(--font-ui); display: grid; grid-template-columns: 240px 1fr; gap: 35px; }
+        .tpl-dual .r-side { background: #f8fafc; padding: 25px 20px; border-radius: 6px; border-left: 4px solid #0f172a; }
+        .tpl-dual .r-name { font-size: 1.8rem; font-weight: 800; color: #0f172a; line-height: 1.2; margin-bottom: 15px; }
+        .tpl-dual .r-title { font-size: 0.85rem; font-weight: 700; color: #0f172a; text-transform: uppercase; margin-top: 22px; margin-bottom: 8px; border-bottom: 2px solid #0284c7; padding-bottom: 3px; letter-spacing: 0.05em; }
+        .tpl-dual .r-body { font-size: 0.9rem; color: #334155; }
+
+        /* 
+         * ==========================================
+         * CLOUD EDUCATION / UNDER THE HOOD
+         * ==========================================
+         */
+        .edu-section { border-top: 1px solid var(--border); padding-top: 50px; }
+        .edu-section h2 { color: var(--primary); font-size: 1.8rem; font-weight: 700; }
+        .edu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px; }
+        .edu-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); padding: 35px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04); }
+        .edu-tag { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 15px; letter-spacing: 0.05em; }
+        .edu-card h3 { font-size: 1.35rem; margin-bottom: 12px; color: var(--primary); font-weight: 700; }
+        .edu-card p { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.6; }
+        @media (max-width: 768px) { .edu-grid { grid-template-columns: 1fr; } .preview-wrapper { justify-content: flex-start; padding: 20px; } }
+    </style>
 </head>
 <body>
-  <div class="card">
-    <div class="emoji">☁️</div>
-    <h1>Hello, Cloud Storage!</h1>
-    <p>
-      This page is being served from <strong>Amazon S3</strong> —
-      no web server, no EC2 instance, no maintenance.
-      Just a file in a bucket, available to the entire world.
-    </p>
-    <div class="badge">✅ Stack 1 deployed successfully</div>
-    <p class="fact">
-      "You pushed a YAML file. A website appeared. That's Infrastructure as Code."
-    </p>
-    <p style="margin-top:16px; opacity:0.6; font-size:0.8rem;">
-      Part of the <strong>cloud-in-action</strong> demo •
-      <a href="https://github.com/YOUR-USERNAME/cloud-in-action"
-         style="color:#c9a84c;">View on GitHub</a>
-    </p>
-  </div>
+    <div class="container">
+        
+        <header>
+            <h1 class="app-title">RefineCV</h1>
+            <p class="app-subtitle">Transform your document into a modern, executive-grade template. Delivered serverlessly via Cloud.</p>
+        </header>
+
+        <div class="security-banner">
+            <span>🔒</span> 
+            <span><strong>100% Private & Secure:</strong> Processed entirely locally in your browser. No data is ever saved or sent to a server.</span>
+        </div>
+
+        <section class="upload-card">
+            <div class="drop-zone" id="drop-zone">
+                <div class="drop-zone-icon">📄</div>
+                <h3 style="margin-bottom: 8px;">Drag & Drop your Word Resume here</h3>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">Requires a modern <strong>.docx</strong> file</p>
+                <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                <input type="file" id="file-input" class="file-input" accept=".doc,.docx">
+            </div>
+            <div style="margin-top: 15px;">
+                <button class="btn btn-secondary" style="font-size: 0.85rem;" onclick="loadSampleResume()">Load Sample (Demo)</button>
+            </div>
+        </section>
+
+        <!-- Dynamic Controls -->
+        <section class="controls-panel" id="controls-panel" style="display: none;">
+            <div class="control-group-top">
+                <button class="template-btn active" onclick="switchTemplate('exec', this)">Executive Standard</button>
+                <button class="template-btn" onclick="switchTemplate('tech', this)">Minimalist Tech</button>
+                <button class="template-btn" onclick="switchTemplate('dual', this)">Two-Column Modern</button>
+            </div>
+            <div class="control-group-bottom">
+                <button class="btn btn-secondary" onclick="exportWord()">📥 Download Word</button>
+                <button class="btn btn-success" onclick="exportPDF()">📄 Download PDF</button>
+            </div>
+        </section>
+
+        <!-- Preview Area -->
+        <div id="preview-area" style="display: none;">
+            <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 10px; font-style: italic;">
+                💡 Tip: Click anywhere on the resume below to edit text directly before downloading.
+            </p>
+            <main class="preview-wrapper">
+                <div id="resume-container" contenteditable="true" class="tpl-exec">
+                    <!-- DOM Injected Here -->
+                </div>
+            </main>
+        </div>
+
+<p style="font-size: 0.8rem; color: var(--text-muted); font-style: italic; margin-top: 15px;">
+    “Whatever you do, work at it with all your heart...” — Colossians 3:23
+</p>
+        <!-- Cloud Education -->
+        <section class="edu-section">
+            <div style="text-align: center;">
+                <h2 style="font-size: 1.8rem; color: var(--primary);">Under the Hood: How This Runs on AWS</h2>
+                <p style="color: var(--text-muted); margin-top: 5px;">Understanding serverless edge architecture on S3 Free Tier.</p>
+            </div>
+            <div class="edu-grid">
+                <div class="edu-card">
+
+                    <h3>The Digital Library</h3>
+                    <p>Think of a traditional web application like a physical bank. Every time you ask a question or upload a file, a "bank teller" (a backend server) has to take it to the back room, process it, and hand you a result. This costs money and introduces security risks.</p>
+                    <p><strong>AWS S3 Static Hosting</strong> is like a digital library. Amazon simply hosts this tool as a single "booklet" on a shelf. When you visit the site, your browser checks out the booklet and does all the reading, organizing, and formatting locally on your own laptop.</p>
+                    <p>Because there is no bank teller running in the background, your data never leaves your computer, and the hosting cost is exactly $0.</p>
+                </div>
+                <div class="edu-card">
+
+                    <h3>Zero-Backend Edge Compute</h3>
+                    <p>This application utilizes a strict <strong>Client-Side DOM Processing Architecture</strong>. By leveraging browser Web APIs and JS libraries like Mammoth.js, the heavy compute load (parsing binary ArrayBuffers) is offloaded 100% to the edge client.</p>
+                    <p>Because there are no EC2 instances, Lambda functions, or database endpoints attached to this S3 bucket, this architecture removes all traditional backend attack vectors. It enables infinite, concurrent scale while remaining well within the bounds of the AWS Free Tier.</p>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- 
+      ==========================================
+      JAVASCRIPT LOGIC
+      ==========================================
+    -->
+    <script>
+        let parsedResumeData = { name: "", contact: "", summary: "", experience: [], education: "", skills: "" };
+        let currentTemplate = 'exec';
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = "var(--primary)"; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = "var(--accent)"; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); dropZone.style.borderColor = "var(--accent)";
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            // STRICT .DOC VALIDATION: Ensure user privacy relies on modern XML structure
+            if (file.name.toLowerCase().endsWith('.doc')) {
+                alert("🔒 Privacy Notice:\n\nBecause this tool processes files entirely in your browser without a backend server, it requires modern .docx files. \n\nPlease open your file in Word, choose 'Save As -> .docx', and try again.");
+                return;
+            }
+            if (!file.name.toLowerCase().endsWith('.docx')) {
+                alert('Please upload a Microsoft Word (.docx) file.'); return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                mammoth.convertToHtml({ arrayBuffer: event.target.result })
+                    .then(result => { parseExtractedHtml(result.value); showPreview(); })
+                    .catch(err => { console.error(err); alert('Could not parse the document structure.'); });
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        /**
+         * ROBUST PARSER: Block-by-block with strict alphanumeric filtering
+         */
+        function parseExtractedHtml(rawHtml) {
+            // Force line breaks into distinct paragraphs to destroy hidden bullets
+            let sanitizedHtml = rawHtml.replace(/<br\s*\/?>/gi, '</p><p>');
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = sanitizedHtml;
+            
+            parsedResumeData = { name: "", contact: "", summary: "", experience: [], education: "", skills: "" };
+
+            // Extract contact
+            const emailMatch = rawHtml.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i);
+            const phoneMatch = rawHtml.match(/(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+            let contactParts = [];
+            if (phoneMatch) contactParts.push(phoneMatch[0]);
+            if (emailMatch) contactParts.push(emailMatch[0]);
+            parsedResumeData.contact = contactParts.join(' | ');
+
+            const blocks = [];
+            const elements = tempDiv.querySelectorAll('p, li, h1, h2, h3');
+            
+            elements.forEach(el => {
+                if (el.tagName === 'P' && el.closest('li')) return; 
+                
+                let plainText = el.textContent.trim();
+                
+                // STRICT CONSTRAINT: Destroy tags lacking letters/numbers
+                if (!/[a-zA-Z0-9]/.test(plainText)) return;
+                
+                let cleanHtml = el.innerHTML.trim();
+                cleanHtml = cleanHtml.replace(/^(<[^>]+>)*[\u2022\u25E6\u2043\-]\s*/, '$1');
+                blocks.push(cleanHtml);
+            });
+
+            let currentSection = 'summary'; 
+            let isFirstLine = true;
+            let lastCleanText = ""; 
+
+            blocks.forEach(block => {
+                let temp = document.createElement('div');
+                temp.innerHTML = block;
+                let cleanText = temp.textContent.trim();
+                const upperText = cleanText.toUpperCase();
+
+                if (cleanText === lastCleanText) return; 
+                lastCleanText = cleanText; 
+
+                if ((emailMatch && cleanText.includes(emailMatch[0])) || (phoneMatch && cleanText.includes(phoneMatch[0]))) return;
+
+                if (isFirstLine && cleanText.length > 2 && cleanText.length < 50) {
+                    parsedResumeData.name = cleanText;
+                    isFirstLine = false; return;
+                }
+                isFirstLine = false;
+
+                // Keyword Routing
+                if (upperText === 'EXPERIENCE' || upperText.includes('PROFESSIONAL EXPERIENCE')) { currentSection = 'experience'; return; } 
+                else if (upperText === 'EDUCATION' || upperText.includes('ACADEMIC BACKGROUND')) { currentSection = 'education'; return; } 
+                else if (upperText === 'SKILLS' || upperText.includes('CORE COMPETENCIES')) { currentSection = 'skills'; return; } 
+                else if (upperText === 'SUMMARY' || upperText.includes('EXECUTIVE SUMMARY')) { currentSection = 'summary'; return; }
+
+                if (currentSection === 'summary') {
+                    parsedResumeData.summary += (parsedResumeData.summary ? "<br>" : "") + block;
+                } else if (currentSection === 'experience') {
+                    parsedResumeData.experience.push(block);
+                } else if (currentSection === 'education') {
+                    if (block.startsWith('•')) {
+                        parsedResumeData.education += `<div style="margin-top: 4px; margin-bottom: 8px;">${block}</div>`;
+                    } else {
+                        parsedResumeData.education += (parsedResumeData.education ? "<br>" : "") + block;
+                    }
+                } else if (currentSection === 'skills') {
+                    let skillText = cleanText.replace(/^•\s*/, '');
+                    parsedResumeData.skills += (parsedResumeData.skills ? " • " : "") + skillText;
+                }
+            });
+
+            if (!parsedResumeData.name) parsedResumeData.name = "Your Name";
+            if (!parsedResumeData.summary) parsedResumeData.summary = "Add summary.";
+        }
+
+        // LOAD SAMPLE DATA: Showcases an authoritative IBM Data Engineering profile
+		function loadSampleResume() { 
+            parsedResumeData = {
+                name: "Jordan Ethan Villafuerte", 
+                contact: "jordan.ethan@testmail.com | Manila, PH",
+                summary: "Aspiring Junior AWS Cloud Engineer passionate about infrastructure-as-code, serverless deployments, and cloud security fundamentals. Eager to support high-velocity engineering teams.",
+                experience: [
+                    "<strong>Junior Cloud Operations Intern</strong> — Apex Cloud Solutions (2025 - Present)<br>• Deployed and maintained EC2 instances, S3 lifecycle rules, and IAM least-privilege policies.<br>• Configured CloudWatch alarms and SNS notification topics, reducing incident response triage time by 20%.", 
+                    "<strong>IT Helpdesk Assistant</strong> — Campus Computing Services (2024 - 2025)<br>• Troubleshot network connectivity, managed Active Directory user access, and automated onboarding scripts via Bash."
+                ],
+                education: "<strong>B.S. in Cloud Computing & Cybersecurity</strong> — Metro State University (2024)",
+                skills: "AWS (EC2, S3, IAM, CloudWatch, VPC, Lambda, CloudFormation) • Git • CI/CD (GitHub Actions)"
+            };
+            showPreview(); 
+        }
+
+        function showPreview() {
+            document.getElementById('controls-panel').style.display = 'flex';
+            document.getElementById('preview-area').style.display = 'block';
+            renderResume();
+            document.getElementById('controls-panel').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function switchTemplate(templateName, btnEl) {
+            currentTemplate = templateName;
+            document.querySelectorAll('.template-btn').forEach(b => b.classList.remove('active'));
+            btnEl.classList.add('active');
+            document.getElementById('resume-container').className = 'tpl-' + templateName;
+            renderResume();
+        }
+
+        function renderResume() {
+            const container = document.getElementById('resume-container');
+            const expHTML = parsedResumeData.experience.map(exp => `<div style="margin-bottom: 16px;">${exp}</div>`).join('');
+            const cleanContact = parsedResumeData.contact.split('|').join('<br>');
+
+            if (currentTemplate === 'exec') {
+                container.innerHTML = `
+                    <div class="r-head"><div class="r-name">${parsedResumeData.name}</div><div class="r-contact">${parsedResumeData.contact}</div></div>
+                    <div class="r-section"><div class="r-title">Professional Summary</div><div class="r-body">${parsedResumeData.summary}</div></div>
+                    <div class="r-section"><div class="r-title">Professional Experience</div><div class="r-body">${expHTML}</div></div>
+                    <div class="r-section"><div class="r-title">Education</div><div class="r-body">${parsedResumeData.education}</div></div>
+                    <div class="r-section"><div class="r-title">Core Competencies</div><div class="r-body">${parsedResumeData.skills}</div></div>
+                `;
+            } else if (currentTemplate === 'tech') {
+                container.innerHTML = `
+                    <div class="r-head"><div class="r-name">${parsedResumeData.name}</div><div class="r-contact">${cleanContact}</div></div>
+                    <div class="r-section"><div class="r-title">Profile</div><div class="r-body">${parsedResumeData.summary}</div></div>
+                    <div class="r-section"><div class="r-title">Technical Skills</div><div class="r-body" style="font-family: monospace;">${parsedResumeData.skills}</div></div>
+                    <div class="r-section"><div class="r-title">Experience</div><div class="r-body">${expHTML}</div></div>
+                    <div class="r-section"><div class="r-title">Education</div><div class="r-body">${parsedResumeData.education}</div></div>
+                `;
+            } else if (currentTemplate === 'dual') {
+                container.innerHTML = `
+                    <div class="r-side">
+                        <div class="r-name">${parsedResumeData.name}</div>
+                        <div class="r-title" style="margin-top:0;">Contact</div><div class="r-body" style="word-break: break-word;">${cleanContact}</div>
+                        <div class="r-title">Skills</div><div class="r-body">${parsedResumeData.skills}</div>
+                        <div class="r-title">Education</div><div class="r-body">${parsedResumeData.education}</div>
+                    </div>
+                    <div>
+                        <div class="r-title" style="margin-top: 0;">Executive Summary</div><div class="r-body" style="margin-bottom: 25px;">${parsedResumeData.summary}</div>
+                        <div class="r-title">Professional Experience</div><div class="r-body">${expHTML}</div>
+                    </div>
+                `;
+            }
+        }
+
+        /**
+         * EXPORT PDF: scrollY: 0 critically prevents rendering blank space
+         */
+        function exportPDF() {
+            const element = document.getElementById('resume-container');
+            const opt = { 
+                margin:       [0.4, 0, 0.4, 0], 
+                filename:     'Resume_Modernized.pdf', 
+                image:        { type: 'jpeg', quality: 0.98 }, 
+                html2canvas:  { scale: 2, useCORS: true, scrollY: 0 }, 
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' },
+                
+                // CRITICAL FIX: Tells the engine to never slice through the middle of a text block
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+		
+		
+/**
+         * EXPORT WORD: Generates MS Word compatible HTML (supports 2-column table layout & linear templates)
+         */
+        function exportWord() {
+            const data = parsedResumeData;
+            let bodyContent = "";
+
+            if (currentTemplate === 'dual') {
+                bodyContent = `
+                    <table width="100%" cellpadding="15" cellspacing="0" border="0">
+                        <tr>
+                            <td width="30%" valign="top" style="background-color: #f1f5f9;">
+                                <h1 style="font-size: 18pt; color: #0f172a; margin-top: 0; line-height: 1.1;">${data.name}</h1>
+                                <h2 style="font-size: 11pt; color: #2563eb; border-bottom: 1pt solid #ccc; text-transform: uppercase; margin-top: 15pt; margin-bottom: 5pt;">Contact</h2>
+                                <div style="font-size: 10pt; color: #333;">${data.contact.split('|').join('<br>')}</div>
+                                <h2 style="font-size: 11pt; color: #2563eb; border-bottom: 1pt solid #ccc; text-transform: uppercase; margin-top: 15pt; margin-bottom: 5pt;">Skills</h2>
+                                <div style="font-size: 10pt; color: #333;">${data.skills}</div>
+                                <h2 style="font-size: 11pt; color: #2563eb; border-bottom: 1pt solid #ccc; text-transform: uppercase; margin-top: 15pt; margin-bottom: 5pt;">Education</h2>
+                                <div style="font-size: 10pt; color: #333;">${data.education}</div>
+                            </td>
+                            <td width="70%" valign="top" style="padding-left: 20pt;">
+                                <h2 style="font-size: 13pt; color: #2563eb; border-bottom: 1pt solid #ccc; text-transform: uppercase; margin-top: 0; margin-bottom: 8pt;">Executive Summary</h2>
+                                <div style="font-size: 11pt; margin-bottom: 20pt;">${data.summary}</div>
+                                <h2 style="font-size: 13pt; color: #2563eb; border-bottom: 1pt solid #ccc; text-transform: uppercase; margin-bottom: 8pt;">Professional Experience</h2>
+                                <div style="font-size: 11pt;">${data.experience.map(e => `<div style="margin-bottom: 12pt;">${e}</div>`).join('')}</div>
+                            </td>
+                        </tr>
+                    </table>
+                `;
+            } else {
+                bodyContent = `
+                    <h1 style="font-size: 24pt; color: #0f172a; margin-bottom: 0; text-align: center; text-transform: uppercase;">${data.name}</h1>
+                    <p style="font-size: 10pt; color: #64748b; text-align: center; margin-top: 5px;">${data.contact.split('|').join(' | ')}</p>
+                    <h2 style="font-size: 14pt; color: #2563eb; border-bottom: 1pt solid #ccc; padding-bottom: 2pt; margin-top: 20pt; text-transform: uppercase;">Professional Summary</h2>
+                    <div style="margin-bottom: 15pt; font-size: 11pt;">${data.summary}</div>
+                    <h2 style="font-size: 14pt; color: #2563eb; border-bottom: 1pt solid #ccc; padding-bottom: 2pt; margin-top: 20pt; text-transform: uppercase;">Professional Experience</h2>
+                    <div style="margin-bottom: 15pt; font-size: 11pt;">${data.experience.map(e => `<div style="margin-bottom: 12pt;">${e}</div>`).join('')}</div>
+                    <h2 style="font-size: 14pt; color: #2563eb; border-bottom: 1pt solid #ccc; padding-bottom: 2pt; margin-top: 20pt; text-transform: uppercase;">Education</h2>
+                    <div style="margin-bottom: 15pt; font-size: 11pt;">${data.education}</div>
+                    <h2 style="font-size: 14pt; color: #2563eb; border-bottom: 1pt solid #ccc; padding-bottom: 2pt; margin-top: 20pt; text-transform: uppercase;">Core Competencies</h2>
+                    <div style="margin-bottom: 15pt; font-size: 11pt;">${data.skills}</div>
+                `;
+            }
+
+            const wordHtml = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><title>Resume</title><style>body { font-family: 'Arial', sans-serif; color: #000; line-height: 1.5; }</style></head>
+                <body>${bodyContent}</body>
+                </html>
+            `;
+            const blob = new Blob(['\ufeff' + wordHtml], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'Resume_Modernized.doc';
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a); URL.revokeObjectURL(url);
+        }
+									
+    </script>
 </body>
 </html>
