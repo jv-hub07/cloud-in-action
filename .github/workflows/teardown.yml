@@ -1,32 +1,5 @@
-# =============================================================================
-# WORKFLOW: teardown.yml
-# =============================================================================
-#
-# WHAT THIS WORKFLOW DOES:
-#   Deletes all three CloudFormation stacks and all the AWS resources
-#   they created (S3 bucket, EC2 instance, VPC, Lambda, API Gateway).
-#
-# RUN THIS AFTER YOUR DEMO to ensure no AWS charges accumulate.
-#
-# SAFETY GATE:
-#   You must type the word "DELETE" in the confirmation input to proceed.
-#   This prevents accidental teardown from a mis-click.
-#
-# WHAT GETS DELETED:
-#   Stack 1: S3 bucket + bucket policy (bucket must be EMPTY first)
-#   Stack 2: EC2, Elastic IP, VPC, Subnet, IGW, Security Group, IAM Role
-#   Stack 3: Lambda, API Gateway, CloudWatch Log Group, IAM Role
-#
-# WHAT IS NOT DELETED:
-#   - Your GitHub repository (nothing touches GitHub)
-#   - Your AWS account itself
-#   - Any resources you created OUTSIDE of these stacks
-#
-# COST AFTER TEARDOWN: $0.00
-#
-# =============================================================================
 
-name: "🗑️ Teardown — Delete All Stacks"
+name: "Teardown — Delete All Stacks"
 
 on:
   # MANUAL ONLY — this workflow never runs automatically.

@@ -1,22 +1,4 @@
-# =============================================================================
-# WORKFLOW: validate.yml
-# =============================================================================
-#
-# WHAT THIS WORKFLOW DOES:
-#   Every time code is pushed to ANY branch (or a Pull Request is opened),
-#   AWS checks our CloudFormation templates for errors BEFORE anything
-#   gets deployed. Think of it as spell-check for infrastructure.
-#
-# WHY THIS MATTERS:
-#   Catching errors early (before deploy) saves time and prevents broken
-#   stacks in AWS. A validate failure here costs $0. A failed deploy
-#   costs time and sometimes leaves orphaned resources.
-#
-# WHAT YOU'LL SEE:
-#   Green checkmark = all templates are valid CloudFormation
-#   Red X = a template has a syntax or structural error (check the logs)
-#
-# =============================================================================
+
 
 name: "☁️ Validate CloudFormation Templates"
 
@@ -117,11 +99,11 @@ jobs:
         run: |
           echo ""
           echo "╔══════════════════════════════════════════════════╗"
-          echo "║  ✅ All CloudFormation templates are valid!      ║"
+          echo "║  All CloudFormation templates are valid!      ║"
           echo "║                                                  ║"
-          echo "║  Stack 1: infra/01-storage/template.yaml  ✅    ║"
-          echo "║  Stack 2: infra/02-server/template.yaml   ✅    ║"
-          echo "║  Stack 3: infra/03-serverless/template.yaml ✅  ║"
+          echo "║  Stack 1: infra/01-storage/template.yaml    ║"
+          echo "║  Stack 2: infra/02-server/template.yaml     ║"
+          echo "║  Stack 3: infra/03-serverless/template.yaml ║"
           echo "╚══════════════════════════════════════════════════╝"
           echo ""
           echo "Next step: Merge to main to trigger deployment workflows."
