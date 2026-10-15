@@ -16,7 +16,7 @@
 #   5. What UserData is (a startup script that runs when your server boots)
 #   6. How to access a server WITHOUT SSH (AWS Systems Manager)
 #
-# FREE TIER: t2.micro instances are FREE for 750 hours/month for 12 months.
+# FREE TIER: t3.micro instances are FREE for 750 hours/month for 12 months.
 #            That's enough to run this server 24/7 for a full month - $0.00.
 #
 # SECURITY HIGHLIGHTS:
@@ -55,7 +55,7 @@ Parameters:
   Environment:
     Type: String
     Default: dev
-    AllowedValues: [dev, staging, prod]
+    AllowedValues: [dev, qa, prod]
     Description: Deployment environment (dev / staging / prod).
 
   InstanceType:

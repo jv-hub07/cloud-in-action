@@ -4,7 +4,7 @@ name: "Deploy Stack 2 - Server (EC2)"
 on:
   push:
     branches:
-      - main
+      - "**"
     paths:
       - "infra/02-server/**"
 
