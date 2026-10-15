@@ -471,7 +471,7 @@ Resources:
             <div class="container">
               <header>
                 <div>
-                  <h1>☁️ EC2 Live Telemetry Dashboard</h1>
+                  <h1> EC2 Live Telemetry Dashboard</h1>
                   <p style="color: var(--text-muted); margin-top: 4px;">Dynamic Infrastructure as Code</p>
                 </div>
                 <div class="badge-live"><span class="pulse"></span> LIVE REACTIVE SERVER</div>
